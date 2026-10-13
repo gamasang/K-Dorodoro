@@ -3,28 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ヘックス・ケイドロ (開発テスト版)</title>
+    <title>ヘックス・ケイドロ (美化修正版)</title>
     <style>
         body { margin: 0; background: #1a1a1a; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; touch-action: manipulation; }
-        #info { margin-bottom: 10px; font-size: 18px; font-weight: bold; background: rgba(0,0,0,0.5); padding: 8px 16px; border-radius: 20px; }
-        #container { width: 100vw; height: 75vh; overflow: auto; display: flex; justify-content: center; align-items: center; position: relative; }
-        #map { position: relative; transform-origin: center; }
+        #info { margin-bottom: 15px; font-size: 18px; font-weight: bold; background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 20px; border: 1px solid #444; z-index: 100; }
+        #container { width: 100vw; height: 80vh; overflow: auto; display: flex; justify-content: center; align-items: center; position: relative; }
+        #map { position: relative; width: 600px; height: 600px; }
         
-        /* CSSで綺麗な正六角形（ヘックス）を作る */
-        .hex { position: absolute; width: 40px; height: 23.09px; background-color: #3a3a3a; margin: 11.55px 0; cursor: pointer; transition: all 0.2s; }
-        .hex:before, .hex:after { content: ""; position: absolute; width: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; left: 0; }
-        .hex:before { bottom: 100%; border-bottom: 11.55px solid #3a3a3a; }
-        .hex:after { top: 100%; border-top: 11.55px solid #3a3a3a; }
-
+        /* 辺と辺が完全にくっつく正六角形のCSS定義 */
+        .hex { position: absolute; width: 34.64px; height: 40px; background-color: #3a3a3a; cursor: pointer; transition: all 0.15s; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
+        
         /* 隣接マスのハイライト（移動可能範囲） */
-        .hex.movable { background-color: #2e5c36; }
-        .hex.movable:before { border-bottom-color: #2e5c36; }
-        .hex.movable:after { border-top-color: #2e5c36; }
+        .hex.movable { background-color: #2e5c36; box-shadow: inset 0 0 10px #5a8f52; }
+        .hex:active { opacity: 0.7; }
 
         /* キャラクター表示用の中身 */
-        .hex-inner { position: absolute; top: -6px; left: 0; width: 40px; height: 35px; display: flex; justify-content: center; align-items: center; font-size: 20px; z-index: 10; pointer-events: none; }
+        .hex-inner { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; font-size: 20px; z-index: 10; pointer-events: none; }
         
-        /* 警察と泥棒の見た目 */
+        /* 警察と泥棒の視覚効果 */
         .police { filter: drop-shadow(0 0 4px #00f); }
         .thief { filter: drop-shadow(0 0 4px #f00); }
     </style>
@@ -39,19 +35,18 @@
 <script>
     // 1辺のマス数（9階層）
     const MAP_SIZE = 9;
-    // ヘックスの描画サイズ計算用
-    const HEX_WIDTH = 40;
-    const HEX_HEIGHT = 46.18; // 23.09 * 2
-    const HORIZ_DIST = HEX_WIDTH * 0.75;
-    const VERT_DIST = HEX_HEIGHT;
+    
+    // 幾何学的に完全に密着させるためのサイズ計算（縦長ヘックス）
+    const HEX_HEIGHT = 40; // 縦の長さ
+    const HEX_WIDTH = Math.sqrt(3) / 2 * HEX_HEIGHT; // 横の長さ (約34.64px)
 
     // ゲームの状態管理
-    let turn = "police"; // "police" または "thief"
+    let turn = "police";
     let isGameOver = false;
 
-    // 警察と泥棒の座標（ヘックス座標系: q, r）
-    let policePos = { q: -(MAP_SIZE-1), r: 0 }; // 左端に配置
-    let thiefPos = { q: MAP_SIZE-1, r: 0 };    // 右端に配置
+    // 初期配置：1辺9マスの大ヘックスの端と端に配置
+    let policePos = { q: -(MAP_SIZE-1), r: 0 };
+    let thiefPos = { q: MAP_SIZE-1, r: -(MAP_SIZE-1) };
 
     const mapElement = document.getElementById("map");
     const infoElement = document.getElementById("info");
@@ -66,7 +61,7 @@
         }
     }
 
-    // 2つのマスが隣接しているか判定（ヘックス座標の距離が1）
+    // 2つのマスが隣接しているか判定
     function isNeighbor(pos1, pos2) {
         const dq = pos1.q - pos2.q;
         const dr = pos1.r - pos2.r;
@@ -76,21 +71,22 @@
     // マップの描画処理
     function drawMap() {
         mapElement.innerHTML = "";
-        
-        // 現在のターン側の座標と移動可能判定
         const currentPos = (turn === "police") ? policePos : thiefPos;
 
         cells.forEach(cell => {
             const hex = document.createElement("div");
             hex.classList.add("hex");
 
-            // 立体交差する軸から画面上のX, Yピクセル座標に変換
-            const x = HORIZ_DIST * cell.q;
-            const y = VERT_DIST * (cell.r + cell.q / 2);
+            // ハニカム構造（辺を密着させる軸変換）
+            // 縦長ヘックスの場合、横方向は 1.5マスのピッチ、縦方向は 1マス + 半マスのズレになります
+            const x = HEX_WIDTH * (cell.q + cell.r / 2);
+            const y = HEX_HEIGHT * 0.75 * cell.r;
             
-            // マップの中心が画面真ん中にくるようオフセット配置
-            hex.style.left = `${x + (MAP_SIZE * 30)}px`;
-            hex.style.top = `${y + (MAP_SIZE * 35)}px`;
+            // マップ全体がコンテナの真ん中にくるよう調整（オフセット座標）
+            const offsetX = 300 - (HEX_WIDTH / 2);
+            const offsetY = 300 - (HEX_HEIGHT / 2);
+            hex.style.left = `${x + offsetX}px`;
+            hex.style.top = `${y + offsetY}px`;
 
             // 移動可能な隣接マスならハイライト
             const movable = !isGameOver && isNeighbor(currentPos, cell);
