@@ -3,139 +3,197 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ヘックス・ケイドロ (美化修正版)</title>
+    <title>ヘックス・ケイドロ (同時実行版)</title>
     <style>
         body { margin: 0; background: #1a1a1a; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; touch-action: manipulation; }
-        #info { margin-bottom: 15px; font-size: 18px; font-weight: bold; background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 20px; border: 1px solid #444; z-index: 100; }
-        #container { width: 100vw; height: 80vh; overflow: auto; display: flex; justify-content: center; align-items: center; position: relative; }
+        #ui-layer { position: absolute; top: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 100; width: 90%; }
+        #info { font-size: 16px; font-weight: bold; background: rgba(0,0,0,0.7); padding: 8px 16px; border-radius: 20px; border: 1px solid #444; text-align: center; width: 100%; box-sizing: border-box; }
+        #action-btn { padding: 10px 24px; font-size: 16px; font-weight: bold; background: #2e5c36; color: white; border: none; border-radius: 8px; cursor: pointer; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        #action-btn:active { background: #1e3d24; }
+        
+        #container { width: 100vw; height: 75vh; overflow: auto; display: flex; justify-content: center; align-items: center; position: relative; margin-top: 60px; }
         #map { position: relative; width: 600px; height: 600px; }
         
-        /* 辺と辺が完全にくっつく正六角形のCSS定義 */
-        .hex { position: absolute; width: 34.64px; height: 40px; background-color: #3a3a3a; cursor: pointer; transition: all 0.15s; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
+        .hex { position: absolute; width: 34.64px; height: 40px; background-color: #3a3a3a; cursor: pointer; transition: background-color 0.2s; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
+        .hex.movable { background-color: #555; }
+        .hex.route { background-color: #2b5797; } /* 選択中のルート */
         
-        /* 隣接マスのハイライト（移動可能範囲） */
-        .hex.movable { background-color: #2e5c36; box-shadow: inset 0 0 10px #5a8f52; }
-        .hex:active { opacity: 0.7; }
-
-        /* キャラクター表示用の中身 */
-        .hex-inner { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; font-size: 20px; z-index: 10; pointer-events: none; }
+        .hex-inner { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; font-size: 18px; z-index: 10; pointer-events: none; }
+        .route-num { font-size: 12px; font-weight: bold; color: #fff; background: rgba(0,0,0,0.6); padding: 2px 5px; border-radius: 50%; }
         
-        /* 警察と泥棒の視覚効果 */
         .police { filter: drop-shadow(0 0 4px #00f); }
         .thief { filter: drop-shadow(0 0 4px #f00); }
     </style>
 </head>
 <body>
 
-<div id="info">👮 警察のターン（移動するマスをタップ）</div>
+<div id="ui-layer">
+    <div id="info">👮 警察の移動ルート（最大6マス）を選んでください</div>
+    <button id="action-btn" onclick="confirmRoute()">ルートを確定する</button>
+</div>
+
 <div id="container">
     <div id="map"></div>
 </div>
 
 <script>
-    // 1辺のマス数（9階層）
     const MAP_SIZE = 9;
-    
-    // 幾何学的に完全に密着させるためのサイズ計算（縦長ヘックス）
-    const HEX_HEIGHT = 40; // 縦の長さ
-    const HEX_WIDTH = Math.sqrt(3) / 2 * HEX_HEIGHT; // 横の長さ (約34.64px)
+    const HEX_HEIGHT = 40;
+    const HEX_WIDTH = Math.sqrt(3) / 2 * HEX_HEIGHT;
+    const MAX_STEPS = 6;
 
-    // ゲームの状態管理
-    let turn = "police";
-    let isGameOver = false;
+    // 進行フェーズ管理: "police_input" -> "thief_input" -> "animating" -> "game_over"
+    let phase = "police_input"; 
 
-    // 初期配置：1辺9マスの大ヘックスの端と端に配置
     let policePos = { q: -(MAP_SIZE-1), r: 0 };
     let thiefPos = { q: MAP_SIZE-1, r: -(MAP_SIZE-1) };
 
+    // 予約されたルート（0番目は現在地、1〜6番目が移動先）
+    let policeRoute = [ { ...policePos } ];
+    let thiefRoute = [ { ...thiefPos } ];
+
     const mapElement = document.getElementById("map");
     const infoElement = document.getElementById("info");
+    const actionBtn = document.getElementById("action-btn");
 
-    // 1辺9マスの六角形マップの座標データを生成
+    // マップ座標生成
     const cells = [];
     for (let q = -MAP_SIZE + 1; q < MAP_SIZE; q++) {
         let r1 = Math.max(-MAP_SIZE + 1, -q - MAP_SIZE + 1);
         let r2 = Math.min(MAP_SIZE + 1, -q + MAP_SIZE);
-        for (let r = r1; r < r2; r++) {
-            cells.push({ q, r });
-        }
+        for (let r = r1; r < r2; r++) { cells.push({ q, r }); }
     }
 
-    // 2つのマスが隣接しているか判定
     function isNeighbor(pos1, pos2) {
         const dq = pos1.q - pos2.q;
         const dr = pos1.r - pos2.r;
         return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2 === 1;
     }
 
-    // マップの描画処理
+    // 指定座標が特定のルートの何歩目か返す (-1なら含まれない)
+    function getRouteStep(route, q, r) {
+        return route.findIndex(p => p.q === q && p.r === r);
+    }
+
     function drawMap() {
         mapElement.innerHTML = "";
-        const currentPos = (turn === "police") ? policePos : thiefPos;
+        
+        // 現在入力中のデータを選択
+        const currentRoute = (phase === "police_input") ? policeRoute : thiefRoute;
+        const lastPos = currentRoute[currentRoute.length - 1];
 
         cells.forEach(cell => {
             const hex = document.createElement("div");
             hex.classList.add("hex");
 
-            // ハニカム構造（辺を密着させる軸変換）
-            // 縦長ヘックスの場合、横方向は 1.5マスのピッチ、縦方向は 1マス + 半マスのズレになります
             const x = HEX_WIDTH * (cell.q + cell.r / 2);
             const y = HEX_HEIGHT * 0.75 * cell.r;
-            
-            // マップ全体がコンテナの真ん中にくるよう調整（オフセット座標）
-            const offsetX = 300 - (HEX_WIDTH / 2);
-            const offsetY = 300 - (HEX_HEIGHT / 2);
-            hex.style.left = `${x + offsetX}px`;
-            hex.style.top = `${y + offsetY}px`;
+            hex.style.left = `${x + 300 - (HEX_WIDTH / 2)}px`;
+            hex.style.top = `${y + 300 - (HEX_HEIGHT / 2)}px`;
 
-            // 移動可能な隣接マスならハイライト
-            const movable = !isGameOver && isNeighbor(currentPos, cell);
-            if (movable) {
+            // ルートに含まれているか
+            const stepIndex = getRouteStep(currentRoute, cell.q, cell.r);
+            if (stepIndex > 0) {
+                hex.classList.add("route");
+            } else if ((phase === "police_input" || phase === "thief_input") && currentRoute.length <= MAX_STEPS && isNeighbor(lastPos, cell)) {
+                // 次に進める隣接マスをハイライト
                 hex.classList.add("movable");
             }
 
-            // キャラクターの配置
+            // アイコンや歩数表示
             const inner = document.createElement("div");
             inner.classList.add("hex-inner");
+            
             if (cell.q === policePos.q && cell.r === policePos.r) {
-                inner.innerText = "👮";
-                inner.classList.add("police");
+                inner.innerText = "👮"; inner.classList.add("police");
             } else if (cell.q === thiefPos.q && cell.r === thiefPos.r) {
-                inner.innerText = "👤";
-                inner.classList.add("thief");
+                inner.innerText = "👤"; inner.classList.add("thief");
+            } else if (stepIndex > 0) {
+                inner.innerHTML = `<span class="route-num">${stepIndex}</span>`;
             }
             hex.appendChild(inner);
 
-            // タップ時の移動処理
+            // タップ時のルート追加・削除ロジック
             hex.addEventListener("click", () => {
-                if (movable) {
-                    if (turn === "police") {
-                        policePos = { q: cell.q, r: cell.r };
-                        checkCollision("thief", "👤 泥棒のターン");
-                    } else {
-                        thiefPos = { q: cell.q, r: cell.r };
-                        checkCollision("police", "👮 警察のターン");
-                    }
+                if (phase !== "police_input" && phase !== "thief_input") return;
+
+                if (stepIndex === currentRoute.length - 1 && stepIndex > 0) {
+                    // 最後に選んだマスをもう一度タップしたら1歩戻す
+                    currentRoute.pop();
+                } else if (currentRoute.length <= MAX_STEPS && isNeighbor(lastPos, cell) && stepIndex === -1) {
+                    // 隣接していて、まだ選んでいないマスなら1歩進める
+                    currentRoute.push({ q: cell.q, r: cell.r });
                 }
+                
+                // 1歩でも動いていれば確定ボタンを表示
+                actionBtn.style.display = (currentRoute.length > 1) ? "block" : "none";
+                drawMap();
             });
 
             mapElement.appendChild(hex);
         });
     }
 
-    // 捕獲判定とターン切り替え
-    function checkCollision(nextTurn, nextMessage) {
-        if (policePos.q === thiefPos.q && policePos.r === thiefPos.r) {
-            infoElement.innerText = "🎉 確保！警察の勝ちです！";
-            isGameOver = true;
-        } else {
-            turn = nextTurn;
-            infoElement.innerText = nextMessage;
+    // ルート確定ボタンが押された時
+    function confirmRoute() {
+        if (phase === "police_input") {
+            phase = "thief_input";
+            actionBtn.style.display = "none";
+            infoElement.innerText = "👤 泥棒の移動ルート（最大6マス）を選んでください";
+            drawMap();
+        } else if (phase === "thief_input") {
+            phase = "animating";
+            actionBtn.style.display = "none";
+            executeMoves(); // 実行フェーズへ
         }
-        drawMap();
     }
 
-    // 初期起動
+    // 1マスずつ同時に動かすメインロジック
+    function executeMoves() {
+        let step = 1;
+        // どちらか長い方の歩数を基準にする（最大6）
+        const maxStepsNum = Math.max(policeRoute.length, thiefRoute.length) - 1;
+
+        const interval = setInterval(() => {
+            // 警察の移動（ルートが残っていれば進む、なければその場にとどまる）
+            if (step < policeRoute.length) {
+                policePos = { ...policeRoute[step] };
+            }
+            // 泥棒の移動
+            if (step < thiefRoute.length) {
+                thiefPos = { ...thiefRoute[step] };
+            }
+
+            infoElement.innerText = `🏃 実行中... (${step} / ${maxStepsNum} 歩目)`;
+            drawMap();
+
+            // 💥 同時衝突（確保）判定
+            if (policePos.q === thiefPos.q && policePos.r === thiefPos.r) {
+                clearInterval(interval);
+                infoElement.innerText = `🚨 激突！${step}歩目で警察が泥棒を確保しました！`;
+                phase = "game_over";
+                return;
+            }
+
+            step++;
+
+            // 全員の移動が終了した場合
+            if (step > maxStepsNum) {
+                clearInterval(interval);
+                infoElement.innerText = "💨 お互いすれ違ったようです！次のターンへ。";
+                
+                // 次のターンのために初期化
+                setTimeout(() => {
+                    phase = "police_input";
+                    policeRoute = [ { ...policePos } ];
+                    thiefRoute = [ { ...thiefPos } ];
+                    infoElement.innerText = "👮 警察の移動ルート（最大6マス）を選んでください";
+                    drawMap();
+                }, 2000);
+            }
+        }, 800); // 0.8秒ごとに1マス進むアニメーション
+    }
+
     drawMap();
 </script>
 </body>
