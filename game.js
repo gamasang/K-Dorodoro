@@ -22,40 +22,49 @@ window.addEventListener('DOMContentLoaded', () => {
         return Math.max(Math.abs(q1 - q2), Math.abs(r1 - r2), Math.abs(s1 - s2));
     }
 
-    // 最短ルート探索 (BFS)
-    function findShortestHexPath(startQ, startR, targetQ, targetR) {
-        let queue = [[{q: startQ, r: startR}]];
+    // BFSで最短経路を検索する関数 (自動最短プロット機能用)
+    function findShortestPath(startQ, startR, targetQ, targetR, maxSteps) {
+        let queue = [[{ q: startQ, r: startR }]];
         let visited = new Set();
         visited.add(`${startQ},${startR}`);
-        
+
+        const neighborsOffset = [
+            { q: 1, r: 0 }, { q: -1, r: 0 },
+            { q: 0, r: 1 }, { q: 0, r: -1 },
+            { q: 1, r: -1 }, { q: -1, r: 1 }
+        ];
+
+        let bestPath = [];
+
         while (queue.length > 0) {
             let path = queue.shift();
-            let curr = path[path.length - 1];
-            if (curr.q === targetQ && curr.r === targetR) {
-                return path.slice(1); // スタート地点を除いた経路を返す
-            }
-            let neighbors = [
-                { q: curr.q + 1, r: curr.r },
-                { q: curr.q - 1, r: curr.r },
-                { q: curr.q, r: curr.r + 1 },
-                { q: curr.q, r: curr.r - 1 },
-                { q: curr.q + 1, r: curr.r - 1 },
-                { q: curr.q - 1, r: curr.r + 1 }
-            ];
-            // 目的地に近い順にソート（探索高速化）
-            neighbors.sort((a, b) => hexDistance(a.q, a.r, targetQ, targetR) - hexDistance(b.q, b.r, targetQ, targetR));
+            let last = path[path.length - 1];
 
-            for (let n of neighbors) {
-                if (Math.abs(n.q) <= HEX_RADIUS && Math.abs(n.r) <= HEX_RADIUS && Math.abs(-n.q - n.r) <= HEX_RADIUS) {
-                    let key = `${n.q},${n.r}`;
-                    if (!visited.has(key)) {
-                        visited.add(key);
-                        queue.push([...path, n]);
+            if (last.q === targetQ && last.r === targetR) {
+                return path.slice(1, maxSteps + 1); // スタート位置除外
+            }
+
+            if (path.length - 1 < maxSteps) {
+                if (bestPath.length === 0 || hexDistance(last.q, last.r, targetQ, targetR) < hexDistance(bestPath[bestPath.length - 1].q, bestPath[bestPath.length - 1].r, targetQ, targetR)) {
+                    bestPath = path;
+                }
+            }
+
+            for (let off of neighborsOffset) {
+                let nq = last.q + off.q;
+                let nr = last.r + off.r;
+                let key = `${nq},${nr}`;
+
+                if (hexDistance(0, 0, nq, nr) <= HEX_RADIUS && !visited.has(key)) {
+                    visited.add(key);
+                    if (path.length - 1 < maxSteps) {
+                        queue.push([...path, { q: nq, r: nr }]);
                     }
                 }
             }
         }
-        return [];
+
+        return bestPath.slice(1, maxSteps + 1);
     }
 
     // ゲーム状態
@@ -64,24 +73,26 @@ window.addEventListener('DOMContentLoaded', () => {
     let treasuresDelivered = 0;
     let thievesJailed = 0;
 
-    // ユニット構成: 警察(右・青) 2 vs 泥棒(左・赤) 4 + 猫(左・黄) 2
+    // ★ 仕様書に基づくユニット初期配置
+    // 警察：右側警察拠点（牢屋：0, 10）からスタート
+    // 泥棒：左側アジト・研究所エリアからスタート
     let units = [
-        // 警察 (右側配置・青・円錐▲)
-        { id: 'P1', name: '警察 1', type: 'POLICE', q: 0, r: 12, baseSpeed: 6, items: [{ name: '電撃銃', weight: 1 }, { name: '台車', weight: 2 }], isJailed: false, color: '#3b82f6', plot: [], endAction: 'NONE' },
-        { id: 'P2', name: '警察 2', type: 'POLICE', q: 1, r: 11, baseSpeed: 6, items: [{ name: '鍵', weight: 1 }], isJailed: false, color: '#60a5fa', plot: [], endAction: 'NONE' },
+        // 警察 (右側警察拠点・青・円錐▲)
+        { id: 'P1', name: '警察 1', type: 'POLICE', q: 0, r: 10, baseSpeed: 6, items: [{ name: '電撃銃', weight: 1 }, { name: '台車', weight: 2 }], isJailed: false, color: '#3b82f6', plot: [], endAction: 'NONE' },
+        { id: 'P2', name: '警察 2', type: 'POLICE', q: 1, r: 10, baseSpeed: 6, items: [{ name: '鍵', weight: 1 }], isJailed: false, color: '#60a5fa', plot: [], endAction: 'NONE' },
 
-        // 泥棒スライム (左側配置・赤・球●)
+        // 泥棒スライム (左側アジト・研究所・赤・球●)
         { id: 'S1', name: '泥棒 1', type: 'SLIME', q: 0, r: -15, baseSpeed: 6, items: [], isJailed: false, color: '#ef4444', plot: [], endAction: 'NONE' },
         { id: 'S2', name: '泥棒 2', type: 'SLIME', q: -15, r: 0, baseSpeed: 6, items: [], isJailed: false, color: '#f87171', plot: [], endAction: 'NONE' },
-        { id: 'S3', name: '泥棒 3', type: 'SLIME', q: 15, r: -15, baseSpeed: 6, items: [], isJailed: false, color: '#dc2626', plot: [], endAction: 'NONE' },
+        { id: 'S3', name: '泥棒 3', type: 'SLIME', q: -10, r: -3, baseSpeed: 6, items: [], isJailed: false, color: '#dc2626', plot: [], endAction: 'NONE' },
         { id: 'S4', name: '泥棒 4', type: 'SLIME', q: -8, r: -4, baseSpeed: 6, items: [], isJailed: false, color: '#fca5a5', plot: [], endAction: 'NONE' },
 
-        // 泥棒猫 (左側配置・黄・NPC●)
+        // 泥棒猫 (左側・黄・NPC●)
         { id: 'C1', name: '泥棒猫 1', type: 'CAT', q: -5, r: -8, baseSpeed: 7, items: [], isJailed: false, color: '#f59e0b', plot: [], endAction: 'NONE' },
-        { id: 'C2', name: '泥棒猫 2', type: 'CAT', q: 5, r: -12, baseSpeed: 7, items: [], isJailed: false, color: '#fbbf24', plot: [], endAction: 'NONE' }
+        { id: 'C2', name: '泥棒猫 2', type: 'CAT', q: -12, r: 4, baseSpeed: 7, items: [], isJailed: false, color: '#fbbf24', plot: [], endAction: 'NONE' }
     ];
 
-    let policeDogs = []; // 警報時に追加される警察犬 (右側牢屋から出動・紫/NPC)
+    let policeDogs = []; // 警報時に追加される警察犬 (右側警察拠点から出動・紫/NPC)
 
     // フィールド上に配置されたアイテム
     let groundItems = [
@@ -93,7 +104,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     let selectedUnitIndex = 0;
 
-    // 重量ペナルティ計算：初期速度 6 - 所持重量 (お宝で1マスに制限)
+    // 重量ペナルティ計算：初期速度 6 - 所持重量
     function getMovableSpeed(unit) {
         let totalWeight = unit.items.reduce((sum, item) => sum + item.weight, 0);
         return Math.max(1, unit.baseSpeed - totalWeight);
@@ -120,7 +131,7 @@ window.addEventListener('DOMContentLoaded', () => {
     function drawGrid() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // 六角形タイルの描画 (横向き/Pointy-topped)
+        // 六角形タイルの描画 (見やすい濃紺バックグラウンド)
         for (let q = -HEX_RADIUS; q <= HEX_RADIUS; q++) {
             let r1 = Math.max(-HEX_RADIUS, -q - HEX_RADIUS);
             let r2 = Math.min(HEX_RADIUS, -q + HEX_RADIUS);
@@ -130,15 +141,45 @@ window.addEventListener('DOMContentLoaded', () => {
                 let fillColor = '#222a3a';
                 let strokeColor = '#3a4760';
 
-                // 施設の色分け表示 (横向きレイアウト)
-                if (q === 0 && r === 10) fillColor = '#6b1d2f'; // 5角形牢屋 (右側警察拠点)
-                if ((q === 0 && r === -15) || (q === -15 && r === 0)) fillColor = '#1d4ed8'; // 研究所 (左側お宝)
-                if ((q === 15 && r === -15) || (q === -10 && r === -3)) fillColor = '#047857'; // 運送班 (左側ゴール)
-                if ((q === -15 && r === 15) || (q === 15 && r === 0)) fillColor = '#6d28d9'; // 抜け道 (上下ショートカット)
+                // 施設の色分け表示
+                if (q === 0 && r === 10) fillColor = '#5c1d28'; // 5角形牢屋 / 警察拠点
+                if ((q === 0 && r === -15) || (q === -15 && r === 0)) fillColor = '#1d4ed8'; // 研究所 (お宝)
+                if ((q === 15 && r === -15) || (q === -10 && r === -3)) fillColor = '#047857'; // 運送班 (ゴール)
+                if ((q === -15 && r === 15) || (q === 15 && r === 0)) fillColor = '#6d28d9'; // 抜け道
 
                 drawHexagon(pix.x, pix.y, TILE_SIZE - 1, fillColor, strokeColor);
             }
         }
+
+        // ★ 建造物の名前を建造物の外側に描画表示する処理
+        const buildingLabels = [
+            { q: 0, r: 10, text: '牢屋(警察拠点)', color: '#f87171', offsetX: 18, offsetY: 4, align: 'left' },
+            { q: 0, r: -15, text: '研究所(お宝)', color: '#60a5fa', offsetX: -18, offsetY: -12, align: 'right' },
+            { q: -15, r: 0, text: '研究所(お宝)', color: '#60a5fa', offsetX: -18, offsetY: 16, align: 'right' },
+            { q: 15, r: -15, text: '運送班(ゴール)', color: '#34d399', offsetX: 18, offsetY: 16, align: 'left' },
+            { q: -10, r: -3, text: '運送班(ゴール)', color: '#34d399', offsetX: -18, offsetY: -12, align: 'right' },
+            { q: -15, r: 15, text: '抜け道', color: '#c084fc', offsetX: -18, offsetY: 16, align: 'right' },
+            { q: 15, r: 0, text: '抜け道', color: '#c084fc', offsetX: 18, offsetY: 16, align: 'left' }
+        ];
+
+        buildingLabels.forEach(label => {
+            const pix = hexToPixel(label.q, label.r);
+            ctx.font = 'bold 11px sans-serif';
+
+            // ラベル背景の作成
+            const textMetrics = ctx.measureText(label.text);
+            const padX = 4, padY = 2;
+            let bgX = pix.x + label.offsetX;
+            if (label.align === 'right') bgX -= (textMetrics.width + padX * 2);
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+            ctx.fillRect(bgX, pix.y + label.offsetY - 10, textMetrics.width + padX * 2, 14);
+
+            // ラベルテキスト描画
+            ctx.fillStyle = label.color;
+            ctx.textAlign = 'left';
+            ctx.fillText(label.text, bgX + padX, pix.y + label.offsetY);
+        });
 
         // 全ユニットのプロット済み移動ラインの描画 (他のユニット操作中も可視化)
         units.forEach((u, idx) => {
@@ -163,11 +204,7 @@ window.addEventListener('DOMContentLoaded', () => {
             }
 
             ctx.lineWidth = isSelected ? 3.5 : 2;
-            if (!isSelected) {
-                ctx.setLineDash([4, 4]);
-            } else {
-                ctx.setLineDash([]);
-            }
+            ctx.setLineDash(isSelected ? [] : [4, 4]);
             ctx.stroke();
             ctx.setLineDash([]);
 
@@ -199,11 +236,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
             ctx.beginPath();
             if (u.type === 'POLICE') {
+                // 警察：円錐（三角形）
                 ctx.moveTo(pix.x, pix.y - 8);
                 ctx.lineTo(pix.x - 7, pix.y + 6);
                 ctx.lineTo(pix.x + 7, pix.y + 6);
                 ctx.closePath();
             } else {
+                // 泥棒・猫：球体（円）
                 ctx.arc(pix.x, pix.y, 7, 0, Math.PI * 2);
             }
 
@@ -273,9 +312,16 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     function handleHexClick(q, r) {
+        // ★ 1. ユニット選択切り替え、および選択中ユニットの再押し下げによるプロットリセット
         let clickedUnitIdx = units.findIndex(u => u.q === q && u.r === r && !u.isJailed);
         if (clickedUnitIdx !== -1 && currentPhase === 'PLOT') {
-            selectedUnitIndex = clickedUnitIdx;
+            if (clickedUnitIdx === selectedUnitIndex) {
+                // 選択中のユニット自身を押し直したらプロット（移動指定）を全リセット
+                units[selectedUnitIndex].plot = [];
+                logEvent(`${units[selectedUnitIndex].name} の移動プロットを全リセットしました。`);
+            } else {
+                selectedUnitIndex = clickedUnitIdx;
+            }
             updateUI();
             drawGrid();
             return;
@@ -286,7 +332,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         let maxMov = getMovableSpeed(selUnit);
 
-        // 現在位置をクリックした場合はリセット
+        // スタート地点マスを押した場合もリセット
         if (q === selUnit.q && r === selUnit.r) {
             selUnit.plot = [];
             updateUI();
@@ -294,7 +340,7 @@ window.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 既存のプロット上をクリックした場合はその位置までUndo
+        // すでにプロット済みのマスを押した場合は、そこまでのキャンセル（Undo）
         let existingIndex = selUnit.plot.findIndex(p => p.q === q && p.r === r);
         if (existingIndex !== -1) {
             selUnit.plot = selUnit.plot.slice(0, existingIndex + 1);
@@ -303,16 +349,14 @@ window.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 新しい目的地への最短ルートを自動探索＆一括プロット
+        // 離れたマスを押した場合は自動で最短ルートをプロット
         let currentLastPos = (selUnit.plot.length > 0) ? selUnit.plot[selUnit.plot.length - 1] : { q: selUnit.q, r: selUnit.r };
         let remainingSteps = maxMov - selUnit.plot.length;
 
         if (remainingSteps > 0) {
-            let path = findShortestHexPath(currentLastPos.q, currentLastPos.r, q, r);
-            if (path.length > 0) {
-                // 移動可能残数ぶんだけプロットに追加
-                let stepsToAdd = path.slice(0, remainingSteps);
-                selUnit.plot = selUnit.plot.concat(stepsToAdd);
+            let autoPath = findShortestPath(currentLastPos.q, currentLastPos.r, q, r, remainingSteps);
+            if (autoPath.length > 0) {
+                selUnit.plot = [...selUnit.plot, ...autoPath];
                 updateUI();
                 drawGrid();
             }
@@ -327,9 +371,9 @@ window.addEventListener('DOMContentLoaded', () => {
         units.filter(u => u.type === 'CAT').forEach(cat => {
             if (cat.plot.length === 0) {
                 if (groundItems.length > 0) {
-                    let nearestItem = groundItems;
+                    let nearestItem = groundItems[0];
                     let step = getNextStepTowards(cat.q, cat.r, nearestItem.q, nearestItem.r);
-                    if (step && step.length > 0) cat.plot.push(step);
+                    if (step && step.length > 0) cat.plot.push(step[0]);
                 }
             }
         });
@@ -366,7 +410,7 @@ window.addEventListener('DOMContentLoaded', () => {
                         units.filter(s => s.type === 'SLIME' && !s.isJailed).forEach(sli => {
                             if (pol.q === sli.q && pol.r === sli.r) {
                                 sli.isJailed = true;
-                                sli.q = 0; sli.r = 10;
+                                sli.q = 0; sli.r = 10; // 右側5角形牢屋へ収監
                                 thievesJailed++;
                                 logEvent(`🚨 ${pol.name} が ${sli.name} を逮捕！ 右側5角形牢屋へ収監しました。`, 'POLICE');
 
