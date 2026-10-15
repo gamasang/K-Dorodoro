@@ -3,250 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ケイドロドロ 2D Web Edition (2P : 4S + 2C)</title>
-    <style>
-        :root {
-            --bg-color: #1a1e29;
-            --panel-bg: #252b3b;
-            --accent-blue: #3b82f6;
-            --accent-red: #ef4444;
-            --accent-green: #10b981;
-            --accent-yellow: #f59e0b;
-            --accent-purple: #8b5cf6;
-            --text-main: #f3f4f6;
-            --text-sub: #9ca3af;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            user-select: none;
-        }
-
-        body {
-            font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        #game-container {
-            display: flex;
-            width: 100vw;
-            height: 100vh;
-        }
-
-        #canvas-wrapper {
-            flex: 1;
-            position: relative;
-            background: #0f1219;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        canvas {
-            background-color: #121620;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            border-radius: 8px;
-        }
-
-        #sidebar {
-            width: 400px;
-            background: var(--panel-bg);
-            border-left: 2px solid #333c4d;
-            display: flex;
-            flex-direction: column;
-            padding: 16px;
-            gap: 14px;
-            overflow-y: auto;
-        }
-
-        .card {
-            background: #1e2430;
-            border: 1px solid #333c4d;
-            border-radius: 8px;
-            padding: 14px;
-        }
-
-        .card-title {
-            font-size: 0.9em;
-            font-weight: bold;
-            color: var(--accent-blue);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .status-badge {
-            font-size: 0.75em;
-            padding: 2px 8px;
-            border-radius: 12px;
-            background: #333c4d;
-            color: white;
-        }
-
-        .phase-indicator {
-            font-size: 1.05em;
-            font-weight: bold;
-            text-align: center;
-            padding: 8px;
-            border-radius: 6px;
-            background: #2b3345;
-            color: #60a5fa;
-            border: 1px solid #3b82f6;
-        }
-
-        .unit-info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            font-size: 0.85em;
-        }
-
-        .info-item {
-            background: #171c26;
-            padding: 6px 10px;
-            border-radius: 4px;
-        }
-
-        .info-label {
-            color: var(--text-sub);
-            font-size: 0.78em;
-        }
-
-        .info-val {
-            font-weight: bold;
-            font-size: 1.02em;
-        }
-
-        .btn-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        button {
-            background: var(--accent-blue);
-            color: white;
-            border: none;
-            padding: 10px 14px;
-            border-radius: 6px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 6px;
-        }
-
-        button:hover {
-            filter: brightness(1.15);
-            transform: translateY(-1px);
-        }
-
-        button:disabled {
-            background: #374151;
-            color: #6b7280;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        button.btn-success { background: var(--accent-green); }
-        button.btn-danger { background: var(--accent-red); }
-        button.btn-warning { background: var(--accent-yellow); color: #111; }
-
-        /* ガイド・解説セクション */
-        .guide-section {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            font-size: 0.8em;
-        }
-
-        .guide-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 8px;
-            background: #171c26;
-            padding: 6px 8px;
-            border-radius: 4px;
-            line-height: 1.3;
-        }
-
-        .guide-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            flex-shrink: 0;
-            margin-top: 2px;
-        }
-
-        .guide-square {
-            width: 12px;
-            height: 12px;
-            border-radius: 2px;
-            flex-shrink: 0;
-            margin-top: 2px;
-        }
-
-        .guide-text {
-            color: #d1d5db;
-        }
-
-        .guide-text strong {
-            color: #ffffff;
-        }
-
-        #event-log {
-            min-height: 140px;
-            max-height: 180px;
-            background: #12151e;
-            border: 1px solid #2a3142;
-            border-radius: 6px;
-            padding: 8px;
-            font-family: monospace;
-            font-size: 0.78em;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .log-entry {
-            line-height: 1.4;
-            border-bottom: 1px dashed #222938;
-            padding-bottom: 2px;
-        }
-
-        .log-time { color: #6b7280; }
-        .log-police { color: #60a5fa; }
-        .log-slime { color: #f87171; }
-        .log-cat { color: #fbbf24; }
-        .log-dog { color: #c084fc; }
-
-        .inv-list {
-            display: flex;
-            gap: 4px;
-            margin-top: 6px;
-            flex-wrap: wrap;
-        }
-
-        .inv-item {
-            background: #283144;
-            border: 1px solid #45526c;
-            border-radius: 4px;
-            padding: 3px 6px;
-            font-size: 0.75em;
-        }
-    </style>
+    <title>ケイドロドロ 2D Web Edition</title>
+    <!-- CSSファイルを読み込み -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="game-container">
@@ -257,7 +16,7 @@
         <div id="sidebar">
             <div class="card">
                 <div class="card-title">
-                    ケイドロドロ 戦況
+                    ケイドロドロ 戦況 (横向きマップ)
                     <span class="status-badge" id="turn-counter">TURN 1</span>
                 </div>
                 <div class="phase-indicator" id="phase-display">
@@ -269,11 +28,11 @@
                 <div class="card-title">チーム目的・進捗</div>
                 <div class="unit-info-grid">
                     <div class="info-item">
-                        <div class="info-label">泥棒(赤): お宝運搬</div>
+                        <div class="info-label">泥棒(左・赤): お宝運搬</div>
                         <div class="info-val" id="treasure-score" style="color:#ef4444">0 / 2 個</div>
                     </div>
                     <div class="info-item">
-                        <div class="info-label">警察(青): 泥棒確保</div>
+                        <div class="info-label">警察(右・青): 泥棒確保</div>
                         <div class="info-val" id="jail-count" style="color:#3b82f6">0 / 4 名</div>
                     </div>
                 </div>
@@ -312,46 +71,45 @@
                 <button class="btn-danger" id="btn-action-throw">🎯 アイテム足元投擲/パス</button>
             </div>
 
-            <!-- 右側サイドバー：ユニット＆マップ解説カード -->
             <div class="card">
                 <div class="card-title" style="color:#a7f3d0;">
-                    📖 ユニット＆マップ解説
+                    📖 ユニット＆マップ解説 (横向き配置)
                 </div>
                 <div class="guide-section">
-                    <div style="font-size: 0.78em; color: #9ca3af; font-weight: bold; margin-top: 2px;">【 ユニット (Units) 】</div>
+                    <div style="font-size: 0.78em; color: #9ca3af; font-weight: bold; margin-top: 2px;">【 ユニット (右:警察 / 左:泥棒) 】</div>
                     <div class="guide-item">
                         <div class="guide-dot" style="background:#3b82f6;"></div>
-                        <div class="guide-text"><strong>警察 (青/▲)</strong>: 泥棒を追跡・逮捕するプレイヤー [1, 4]。接触で収監。</div>
+                        <div class="guide-text"><strong>警察 (右側/青/▲)</strong>: 右側からスタート。泥棒を追跡・逮捕し右側牢屋へ収監。</div>
                     </div>
                     <div class="guide-item">
                         <div class="guide-dot" style="background:#ef4444;"></div>
-                        <div class="guide-text"><strong>泥棒スライム (赤/●)</strong>: お宝を運搬するプレイヤー [1, 4]。お宝(重さ5)で移動力1に減算 [会10]。</div>
+                        <div class="guide-text"><strong>泥棒スライム (左側/赤/●)</strong>: 左側からスタート。お宝(重さ5)所持で移動力1に減算。</div>
                     </div>
                     <div class="guide-item">
                         <div class="guide-dot" style="background:#f59e0b;"></div>
-                        <div class="guide-text"><strong>泥棒猫 (黄/●)</strong>: 泥棒を補助するNPC。お宝やアイテムを自律回収する。</div>
+                        <div class="guide-text"><strong>泥棒猫 (左側/黄/●)</strong>: 泥棒を補助するNPC。お宝やアイテムを自律回収する。</div>
                     </div>
                     <div class="guide-item">
                         <div class="guide-dot" style="background:#a855f7; border: 1px solid #fff;"></div>
-                        <div class="guide-text"><strong>警察犬 (紫/●)</strong>: お宝持ち出し警報で出動する高速追跡NPC。</div>
+                        <div class="guide-text"><strong>警察犬 (右側牢屋発/紫/●)</strong>: お宝持ち出し警報で右側拠点から出動。</div>
                     </div>
 
-                    <div style="font-size: 0.78em; color: #9ca3af; font-weight: bold; margin-top: 6px;">【 構造物・施設 (Structures) 】</div>
+                    <div style="font-size: 0.78em; color: #9ca3af; font-weight: bold; margin-top: 6px;">【 構造物・施設 (横向き) 】</div>
                     <div class="guide-item">
                         <div class="guide-square" style="background:#4a1d24; border:1px solid #ef4444;"></div>
-                        <div class="guide-text"><strong>5角形牢屋 (中央)</strong>: 逮捕された泥棒が収監される場所。鍵で解放。</div>
+                        <div class="guide-text"><strong>5角形牢屋 (右側拠点)</strong>: 逮捕された泥棒が収監される場所。鍵で解放。</div>
                     </div>
                     <div class="guide-item">
                         <div class="guide-square" style="background:#1e3a8a; border:1px solid #3b82f6;"></div>
-                        <div class="guide-text"><strong>研究所 (青エリア/角)</strong>: お宝(重さ5)が保管されている施設 [会15]。</div>
+                        <div class="guide-text"><strong>研究所 (左側エリア)</strong>: お宝(重さ5)が保管されている施設。</div>
                     </div>
                     <div class="guide-item">
                         <div class="guide-square" style="background:#064e3b; border:1px solid #10b981;"></div>
-                        <div class="guide-text"><strong>運送班 (緑エリア/角)</strong>: お宝を持ち込んで勝利となるゴール。</div>
+                        <div class="guide-text"><strong>運送班 (左側エリア)</strong>: お宝を持ち込んで勝利となるゴール。</div>
                     </div>
                     <div class="guide-item">
                         <div class="guide-square" style="background:#4c1d95; border:1px solid #8b5cf6;"></div>
-                        <div class="guide-text"><strong>抜け道 (紫エリア/角)</strong>: 泥棒側専用のショートカット通路。</div>
+                        <div class="guide-text"><strong>抜け道 (上下端エリア)</strong>: 泥棒側専用のショートカット通路。</div>
                     </div>
                 </div>
             </div>
@@ -359,416 +117,13 @@
             <div class="card" style="display:flex; flex-direction:column;">
                 <div class="card-title">リアルタイム・ゲームログ</div>
                 <div id="event-log">
-                    <div class="log-entry"><span class="log-time">[00:00]</span> ゲーム開始！ 警察2(青) vs (泥棒4(赤) + 猫2(黄))</div>
+                    <div class="log-entry"><span class="log-time">[00:00]</span> ゲーム開始！ 警察2(右・青) vs (泥棒4(左・赤) + 猫2(黄))</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // === HEXAGONAL GRID MATH & ENGINE ===
-        const HEX_RADIUS = 15; // マップ半径：15マス
-        const TILE_SIZE = 16;  // タイル描画ピクセル半径
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-
-        // Cube/Axial 座標変換
-        function hexToPixel(q, r) { 
-            const x = TILE_SIZE * (Math.sqrt(3) * (r + q / 2)); 
-            const y = TILE_SIZE * (1.5 * q); 
-            return { x: centerX + x, y: centerY + y }; 
-        }
-
-        function hexDistance(q1, r1, q2, r2) {
-            const s1 = -q1 - r1;
-            const s2 = -q2 - r2;
-            return Math.max(Math.abs(q1 - q2), Math.abs(r1 - r2), Math.abs(s1 - s2));
-        }
-
-        // ゲーム状態
-        let gameTurn = 1;
-        let currentPhase = 'PLOT'; // 'PLOT' -> 'MOVING'
-        let treasuresDelivered = 0;
-        let thievesJailed = 0;
-
-        // ユニット構成 (警察2[青] : 泥棒4[赤] : 猫2[黄] = 計8名)
-        let units = [
-            // 警察 (青・円錐▲)
-            { id: 'P1', name: '警察 1', type: 'POLICE', q: 0, r: 0, baseSpeed: 6, items: [{ name: '電撃銃', weight: 1 }, { name: '台車', weight: 2 }], isJailed: false, color: '#3b82f6', plot: [] },
-            { id: 'P2', name: '警察 2', type: 'POLICE', q: 1, r: -1, baseSpeed: 6, items: [{ name: '鍵', weight: 1 }], isJailed: false, color: '#60a5fa', plot: [] },
-
-            // 泥棒スライム (赤・球●)
-            { id: 'S1', name: '泥棒 1', type: 'SLIME', q: 15, r: 0, baseSpeed: 6, items: [], isJailed: false, color: '#ef4444', plot: [] },
-            { id: 'S2', name: '泥棒 2', type: 'SLIME', q: 0, r: 15, baseSpeed: 6, items: [], isJailed: false, color: '#f87171', plot: [] },
-            { id: 'S3', name: '泥棒 3', type: 'SLIME', q: -15, r: 15, baseSpeed: 6, items: [], isJailed: false, color: '#dc2626', plot: [] },
-            { id: 'S4', name: '泥棒 4', type: 'SLIME', q: -15, r: 0, baseSpeed: 6, items: [], isJailed: false, color: '#fca5a5', plot: [] },
-
-            // 泥棒猫 (黄・NPC●)
-            { id: 'C1', name: '泥棒猫 1', type: 'CAT', q: 0, r: -15, baseSpeed: 7, items: [], isJailed: false, color: '#f59e0b', plot: [] },
-            { id: 'C2', name: '泥棒猫 2', type: 'CAT', q: 15, r: -15, baseSpeed: 7, items: [], isJailed: false, color: '#fbbf24', plot: [] }
-        ];
-
-        let policeDogs = []; // 警報時に追加される警察犬 (紫/エンジ・NPC)
-
-        // フィールド上に配置されたアイテム
-        let groundItems = [
-            { id: 'T1', name: 'お宝', weight: 5, q: 15, r: 0, color: '#ffd700' },
-            { id: 'T2', name: 'お宝', weight: 5, q: -15, r: 15, color: '#ffd700' },
-            { id: 'B1', name: '骨', weight: 2, q: 5, r: -5, color: '#e5e7eb' },
-            { id: 'K1', name: '鍵', weight: 1, q: -5, r: 5, color: '#a855f7' }
-        ];
-
-        let selectedUnitIndex = 0;
-
-        // 重量ペナルティ計算：初期速度 6 - 所持重量 (お宝で1マスに制限) [4, 会10]
-        function getMovableSpeed(unit) {
-            let totalWeight = unit.items.reduce((sum, item) => sum + item.weight, 0);
-            return Math.max(1, unit.baseSpeed - totalWeight);
-        }
-
-        // ログ出力 helper
-        function logEvent(msg, type = 'normal') {
-            const logBox = document.getElementById('event-log');
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            let colorClass = '';
-            if (type === 'POLICE') colorClass = 'log-police';
-            if (type === 'SLIME') colorClass = 'log-slime';
-            if (type === 'CAT') colorClass = 'log-cat';
-            if (type === 'DOG') colorClass = 'log-dog';
-
-            entry.innerHTML = `<span class="log-time">[T${gameTurn}]</span> <span class="${colorClass}">${msg}</span>`;
-            logBox.appendChild(entry);
-            logBox.scrollTop = logBox.scrollHeight;
-        }
-
-        // キャンバス描画エンジン
-        function drawGrid() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 六角形タイルの描画
-            for (let q = -HEX_RADIUS; q <= HEX_RADIUS; q++) {
-                let r1 = Math.max(-HEX_RADIUS, -q - HEX_RADIUS);
-                let r2 = Math.min(HEX_RADIUS, -q + HEX_RADIUS);
-                for (let r = r1; r <= r2; r++) {
-                    const pix = hexToPixel(q, r);
-
-                    let fillColor = '#1a202c';
-                    let strokeColor = '#2d3748';
-
-                    // 施設の色分け表示
-                    if (q === 0 && r === 0) fillColor = '#4a1d24'; // 5角形牢屋
-                    if ((q === 15 && r === 0) || (q === -15 && r === 15)) fillColor = '#1e3a8a'; // 研究所 (お宝)
-                    if ((q === 0 && r === -15) || (q === 15 && r === -15)) fillColor = '#064e3b'; // 運送班 (ゴール)
-                    if ((q === -15 && r === 0) || (q === 0 && r === 15)) fillColor = '#4c1d95'; // 抜け道
-
-                    drawHexagon(pix.x, pix.y, TILE_SIZE - 1, fillColor, strokeColor);
-                }
-            }
-
-            // プロットされた移動ラインの描画
-            const selUnit = units[selectedUnitIndex];
-            if (selUnit && selUnit.plot.length > 0) {
-                ctx.beginPath();
-                let startPix = hexToPixel(selUnit.q, selUnit.r);
-                ctx.moveTo(startPix.x, startPix.y);
-                selUnit.plot.forEach(p => {
-                    let pix = hexToPixel(p.q, p.r);
-                    ctx.lineTo(pix.x, pix.y);
-                });
-                ctx.strokeStyle = (selUnit.type === 'POLICE') ? '#60a5fa' : '#f87171';
-                ctx.lineWidth = 3;
-                ctx.setLineDash();
-                ctx.stroke();
-                ctx.setLineDash([]);
-            }
-
-            // 落ちているアイテムの描画
-            groundItems.forEach(item => {
-                const pix = hexToPixel(item.q, item.r);
-                ctx.beginPath();
-                ctx.arc(pix.x, pix.y, 5, 0, Math.PI * 2);
-                ctx.fillStyle = item.color;
-                ctx.fill();
-                ctx.strokeStyle = '#000';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-            });
-
-            // ユニットの描画
-            units.forEach((u, idx) => {
-                if (u.isJailed) return;
-                const pix = hexToPixel(u.q, u.r);
-
-                ctx.beginPath();
-                if (u.type === 'POLICE') {
-                    // 警察：円錐（三角形）
-                    ctx.moveTo(pix.x, pix.y - 8);
-                    ctx.lineTo(pix.x - 7, pix.y + 6);
-                    ctx.lineTo(pix.x + 7, pix.y + 6);
-                    ctx.closePath();
-                } else {
-                    // 泥棒・猫：球体（円）
-                    ctx.arc(pix.x, pix.y, 7, 0, Math.PI * 2);
-                }
-
-                ctx.fillStyle = u.color;
-                ctx.fill();
-                ctx.strokeStyle = (idx === selectedUnitIndex) ? '#ffffff' : '#000000';
-                ctx.lineWidth = (idx === selectedUnitIndex) ? 3 : 1;
-                ctx.stroke();
-            });
-
-            // 警察犬の描画
-            policeDogs.forEach(dog => {
-                const pix = hexToPixel(dog.q, dog.r);
-                ctx.beginPath();
-                ctx.arc(pix.x, pix.y, 6, 0, Math.PI * 2);
-                ctx.fillStyle = '#a855f7';
-                ctx.fill();
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-            });
-        }
-
-        function drawHexagon(x, y, radius, fillColor, strokeColor) { 
-            ctx.beginPath(); 
-            for (let i = 0; i &lt; 6; i++) { 
-                let angle = Math.PI / 180 * (60 * i + 30); // ★ 30度回転 
-                let x_i = x + radius * Math.cos(angle); 
-                let y_i = y + radius * Math.sin(angle); 
-                if (i === 0) ctx.moveTo(x_i, y_i); 
-                else ctx.lineTo(x_i, y_i); 
-            } 
-            ctx.closePath(); 
-            ctx.fillStyle = fillColor; ctx.fill(); 
-            ctx.strokeStyle = strokeColor; 
-            ctx.lineWidth = 1; 
-            ctx.stroke(); 
-        }
-
-        // クリックインタラクション
-        canvas.addEventListener('click', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
-            let minDistance = 99999;
-            let targetTile = null;
-
-            for (let q = -HEX_RADIUS; q <= HEX_RADIUS; q++) {
-                let r1 = Math.max(-HEX_RADIUS, -q - HEX_RADIUS);
-                let r2 = Math.min(HEX_RADIUS, -q + HEX_RADIUS);
-                for (let r = r1; r <= r2; r++) {
-                    const pix = hexToPixel(q, r);
-                    const d = Math.hypot(pix.x - mouseX, pix.y - mouseY);
-                    if (d < minDistance && d < TILE_SIZE) {
-                        minDistance = d;
-                        targetTile = { q, r };
-                    }
-                }
-            }
-
-            if (targetTile) {
-                handleHexClick(targetTile.q, targetTile.r);
-            }
-        });
-
-        function handleHexClick(q, r) {
-            // ユニット選択の切り替え
-            let clickedUnitIdx = units.findIndex(u => u.q === q && u.r === r && !u.isJailed);
-            if (clickedUnitIdx !== -1 && currentPhase === 'PLOT') {
-                selectedUnitIndex = clickedUnitIdx;
-                updateUI();
-                drawGrid();
-                return;
-            }
-
-            // 移動パスのプロット
-            let selUnit = units[selectedUnitIndex];
-            if (selUnit && currentPhase === 'PLOT') {
-                let currentLastPos = (selUnit.plot.length > 0) ? selUnit.plot[selUnit.plot.length - 1] : { q: selUnit.q, r: selUnit.r };
-                let dist = hexDistance(currentLastPos.q, currentLastPos.r, q, r);
-
-                let maxMov = getMovableSpeed(selUnit);
-                if (dist === 1 && selUnit.plot.length < maxMov) {
-                    selUnit.plot.push({ q, r });
-                    updateUI();
-                    drawGrid();
-                }
-            }
-        }
-
-        // コマ送り一斉移動の実行ロジック
-        function executeMovementPhase() {
-            currentPhase = 'MOVING';
-            document.getElementById('phase-display').innerText = '2. 一斉コマ送り移動中...';
-
-            // 猫AIの自動プロット
-            units.filter(u => u.type === 'CAT').forEach(cat => {
-                if (cat.plot.length === 0) {
-                    if (groundItems.length > 0) {
-                        let nearestItem = groundItems[0];
-                        let step = getNextStepTowards(cat.q, cat.r, nearestItem.q, nearestItem.r);
-                        if (step && step.length > 0) cat.plot.push(step[0]);
-                    }
-                }
-            });
-
-            let stepCount = 0;
-            let maxSteps = 9;
-
-            let interval = setInterval(() => {
-                stepCount++;
-                let anyMoved = false;
-
-                units.forEach(u => {
-                    if (u.plot.length > 0) {
-                        let nextPos = u.plot.shift();
-                        u.q = nextPos.q;
-                        u.r = nextPos.r;
-                        anyMoved = true;
-
-                        // アイテム自動拾い
-                        for (let i = groundItems.length - 1; i >= 0; i--) {
-                            let item = groundItems[i];
-                            if (item.q === u.q && item.r === u.r) {
-                                u.items.push(item);
-                                logEvent(`${u.name} が ${item.name} (重さ${item.weight}) を取得！`, u.type);
-                                groundItems.splice(i, 1);
-
-                                // お宝持ち出し時に警報発令＆警察犬召喚
-                                if (item.name === 'お宝' && policeDogs.length === 0) {
-                                    policeDogs.push({ id: 'D1', q: 0, r: 0, speed: 8 });
-                                    logEvent(`🚨 警報発生！監視カメラがお宝持ち出しを検知。警察犬(紫)が出動！`, 'DOG');
-                                }
-                            }
-                        }
-
-                        // 警察と泥棒の鉢合わせ接触判定（逮捕＆所持品散乱）
-                        units.filter(p => p.type === 'POLICE').forEach(pol => {
-                            units.filter(s => s.type === 'SLIME' && !s.isJailed).forEach(sli => {
-                                if (pol.q === sli.q && pol.r === sli.r) {
-                                    sli.isJailed = true;
-                                    sli.q = 0; sli.r = 0; // 牢屋へ収監
-                                    thievesJailed++;
-                                    logEvent(`🚨 ${pol.name} が ${sli.name} を逮捕！ 5角形牢屋へ収監しました。`, 'POLICE');
-
-                                    sli.items.forEach(itm => {
-                                        itm.q = pol.q; itm.r = pol.r;
-                                        groundItems.push(itm);
-                                    });
-                                    sli.items = [];
-                                }
-                            });
-                        });
-
-                        // 泥棒のお宝運送完了判定
-                        units.filter(s => (s.type === 'SLIME' || s.type === 'CAT')).forEach(s => {
-                            if ((s.q === 0 && s.r === -15) || (s.q === 15 && s.r === -15)) {
-                                let treasureIdx = s.items.findIndex(it => it.name === 'お宝');
-                                if (treasureIdx !== -1) {
-                                    s.items.splice(treasureIdx, 1);
-                                    treasuresDelivered++;
-                                    logEvent(`🎉 ${s.name} がお宝を運送班へ届けた！ (計 ${treasuresDelivered} / 2 個)`, 'SLIME');
-                                }
-                            }
-                        });
-                    }
-                });
-
-                drawGrid();
-
-                if (!anyMoved || stepCount >= maxSteps) {
-                    clearInterval(interval);
-                    finishTurn();
-                }
-            }, 300);
-        }
-
-        function getNextStepTowards(sq, sr, tq, tr) {
-            let neighbors = [
-                { q: sq + 1, r: sr }, { q: sq - 1, r: sr },
-                { q: sq, r: sr + 1 }, { q: sq, r: sr - 1 },
-                { q: sq + 1, r: sr - 1 }, { q: sq - 1, r: sr + 1 }
-            ];
-            neighbors.sort((a, b) => hexDistance(a.q, a.r, tq, tr) - hexDistance(b.q, b.r, tq, tr));
-            return neighbors;
-        }
-
-        function finishTurn() {
-            gameTurn++;
-            currentPhase = 'PLOT';
-            document.getElementById('phase-display').innerText = '1. 計画フェイズ (Plot Phase)';
-            document.getElementById('turn-counter').innerText = `TURN ${gameTurn}`;
-
-            // 勝敗条件判定
-            if (treasuresDelivered >= 2) {
-                alert('🎉 泥棒陣営の完全勝利！ すべてのお宝を運送班へ届けました！');
-            } else if (thievesJailed >= 4) {
-                alert('🚨 警察陣営の完全勝利！ すべての泥棒を逮捕・収監しました！');
-            }
-
-            updateUI();
-            drawGrid();
-        }
-
-        // UI更新
-        function updateUI() {
-            const u = units[selectedUnitIndex];
-            document.getElementById('unit-type-badge').innerText = u.name;
-            document.getElementById('unit-pos').innerText = `(${u.q}, ${u.r})`;
-
-            let movable = getMovableSpeed(u);
-            document.getElementById('unit-speed').innerText = `${movable} マス (重量減算済み)`;
-            document.getElementById('unit-plot-count').innerText = `${u.plot.length} / ${movable} ステップ`;
-
-            document.getElementById('treasure-score').innerText = `${treasuresDelivered} / 2 個`;
-            document.getElementById('jail-count').innerText = `${thievesJailed} / 4 名`;
-
-            const invContainer = document.getElementById('unit-inventory');
-            invContainer.innerHTML = '';
-            if (u.items.length === 0) {
-                invContainer.innerHTML = '<div class="inv-item">空き</div>';
-            } else {
-                u.items.forEach(it => {
-                    invContainer.innerHTML += `<div class="inv-item">${it.name} (重さ${it.weight})</div>`;
-                });
-            }
-        }
-
-        // ボタンイベント
-        document.getElementById('btn-execute-phase').addEventListener('click', () => {
-            if (currentPhase === 'PLOT') {
-                executeMovementPhase();
-            }
-        });
-
-        document.getElementById('btn-reset-plot').addEventListener('click', () => {
-            units[selectedUnitIndex].plot = [];
-            updateUI();
-            drawGrid();
-        });
-
-        document.getElementById('btn-action-throw').addEventListener('click', () => {
-            let u = units[selectedUnitIndex];
-            if (u.items.length > 0) {
-                let droppedItem = u.items.pop();
-                droppedItem.q = u.q; droppedItem.r = u.r;
-                groundItems.push(droppedItem);
-                logEvent(`${u.name} が足元に ${droppedItem.name} を置いた/パスした。`, u.type);
-                updateUI();
-                drawGrid();
-            }
-        });
-
-        // 初期化
-        updateUI();
-        drawGrid();
-    </script>
+    <!-- JavaScriptファイルを読み込み -->
+    <script src="game.js"></script>
 </body>
 </html>
