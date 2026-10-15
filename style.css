@@ -35,15 +35,15 @@ body {
 #canvas-wrapper {
     flex: 1;
     position: relative;
-    background: #0f1219;
+    background: #0d1117;
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
 canvas {
-    background-color: #121620;
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    background-color: #161b22;
+    box-shadow: 0 0 25px rgba(0,0,0,0.6);
     border-radius: 8px;
 }
 
@@ -54,7 +54,7 @@ canvas {
     display: flex;
     flex-direction: column;
     padding: 16px;
-    gap: 14px;
+    gap: 12px;
     overflow-y: auto;
 }
 
@@ -62,7 +62,7 @@ canvas {
     background: #1e2430;
     border: 1px solid #333c4d;
     border-radius: 8px;
-    padding: 14px;
+    padding: 12px;
 }
 
 .card-title {
@@ -86,7 +86,7 @@ canvas {
 }
 
 .phase-indicator {
-    font-size: 1.05em;
+    font-size: 1em;
     font-weight: bold;
     text-align: center;
     padding: 8px;
@@ -140,16 +140,16 @@ button {
     gap: 6px;
 }
 
-button:hover {
-    filter: brightness(1.15);
-    transform: translateY(-1px);
+button:disabled {
+    background: #374151 !important;
+    color: #9ca3af !important;
+    cursor: not-allowed;
+    transform: none !important;
 }
 
-button:disabled {
-    background: #374151;
-    color: #6b7280;
-    cursor: not-allowed;
-    transform: none;
+button:hover:not(:disabled) {
+    filter: brightness(1.15);
+    transform: translateY(-1px);
 }
 
 button.btn-success { background: var(--accent-green); }
@@ -171,14 +171,6 @@ button.btn-warning { background: var(--accent-yellow); color: #111; }
     padding: 6px 8px;
     border-radius: 4px;
     line-height: 1.3;
-}
-
-.guide-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    margin-top: 2px;
 }
 
 .guide-square {
