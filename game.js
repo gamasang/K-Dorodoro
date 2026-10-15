@@ -1,8 +1,8 @@
-// === KIEDRORORO GAME ENGINE (RADIUS 10 MAP / IMMEDIATE RENDER) ===
-
+// === HEXAGONAL GRID ENGINE (CORRECT 6-CORNER AXIAL POSITIONS, RADIUS=10) ===
 function initGame() {
-    const HEX_RADIUS = 10;   // マップ半径10マス (全331マス)
-    const TILE_SIZE = 23.0;  // 画面全体に大きく見やすく配置
+    const HEX_RADIUS = 10;   // マップ半径: 10マス (全331マス)
+    const TILE_SIZE = 23;    // 描画サイズ
+
     const canvas = document.getElementById('gameCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -10,6 +10,7 @@ function initGame() {
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
 
+    // 六角形座標変換 (Axial Coordinates)
     function hexToPixel(q, r) {
         const x = TILE_SIZE * (Math.sqrt(3) * (r + q / 2));
         const y = TILE_SIZE * (1.5 * q);
@@ -22,80 +23,93 @@ function initGame() {
         return Math.max(Math.abs(q1 - q2), Math.abs(r1 - r2), Math.abs(s1 - s2));
     }
 
+    function isValidHex(q, r) {
+        return hexDistance(0, 0, q, r) <= HEX_RADIUS;
+    }
+
+    function getNeighbors(q, r) {
+        const dirs = [
+            { q: 1, r: 0 }, { q: -1, r: 0 },
+            { q: 0, r: 1 }, { q: 0, r: -1 },
+            { q: 1, r: -1 }, { q: -1, r: 1 }
+        ];
+        let res = [];
+        for (let d of dirs) {
+            let nq = q + d.q, nr = r + d.r;
+            if (isValidHex(nq, nr)) res.push({ q: nq, r: nr });
+        }
+        return res;
+    }
+
+    // ゲーム状態
     let gameTurn = 1;
-    let currentPhase = 'PLOT'; 
+    let currentPhase = 'PLOT';
     let treasuresDelivered = 0;
     let thievesJailed = 0;
-    let powerHackedTurns = 0; // 発電所ハッキングターンカウント
+    let powerPlantHackedTurns = 0; // 発電所ハッキングカウント
 
-    // 運送班(ゴール)の動的配置: 'B' または 'F'
-    let activeGoalNode = (Math.random() < 0.5) ? 'B' : 'F';
-    let isGoalRevealed = false;
+    // 角A〜Fの厳密な座標設定 (Radius=10)
+    // A(左): (0, -10)
+    // B(上左): (-10, 0)
+    // C(上右): (-10, 10)
+    // D(右): (0, 10)
+    // E(下右): (10, 0)
+    // F(下左): (10, -10)
 
-    // 研究所と発電所のランダム配置
-    let labNode = 'C';
-    let powerNode = 'E';
-    if (Math.random() < 0.5) {
-        labNode = 'E';
-        powerNode = 'C';
-    }
+    const cornerA = { q: 0, r: -10, name: '泥棒拠点' };
+    const cornerB = { q: -10, r: 0, name: '角B' };
+    const cornerC = { q: -10, r: 10, name: '角C' };
+    const cornerD = { q: 0, r: 10, name: '警察拠点' };
+    const cornerE = { q: 10, r: 0, name: '角E' };
+    const cornerF = { q: 10, r: -10, name: '角F' };
 
-    function getCornerCoord(corner) {
-        switch(corner) {
-            case 'A': return { q: 0, r: -10 };   // 泥棒拠点 (左)
-            case 'B': return { q: -10, r: 0 };   // 上左
-            case 'C': return { q: -10, r: 10 };  // 上右
-            case 'D': return { q: 0, r: 9 };     // 警察拠点・牢屋 (右・r=9で1マス左へ)
-            case 'E': return { q: 10, r: 0 };    // 下右
-            case 'F': return { q: 10, r: -10 };  // 下左
-            default: return { q: 0, r: 0 };
-        }
-    }
+    // 研究所と発電所のランダム配置 (角C と 角E)
+    let isLabAtC = Math.random() < 0.5;
+    const labPos = isLabAtC ? cornerC : cornerE;
+    const powerPos = isLabAtC ? cornerE : cornerC;
 
-    // ユニット構成
-    let units = [
-        // 警察 (角D / r=9の隣接マスからスタート)
-        { id: 'P1', name: '警察 1', type: 'POLICE', q: -1, r: 9, baseSpeed: 6, items: [{ name: '電撃銃', weight: 1 }, { name: '台車', weight: 2 }], isJailed: false, color: '#3b82f6', plot: [], endAction: 'NONE' },
-        { id: 'P2', name: '警察 2', type: 'POLICE', q: 1, r: 8, baseSpeed: 6, items: [{ name: '鍵', weight: 1 }], isJailed: false, color: '#60a5fa', plot: [], endAction: 'NONE' },
+    // 運送班 (お宝手中に後で有効化)
+    let targetGoalCorner = (Math.random() < 0.5) ? cornerB : cornerF;
+    let isGoalActive = false;
 
-        // 警察犬 (牢屋r=9の左隣 r=8 からスタート)
-        { id: 'D1', name: '警察犬 1', type: 'DOG', q: 0, r: 8, baseSpeed: 8, items: [], isJailed: false, color: '#a855f7', plot: [], endAction: 'NONE' },
-
-        // 泥棒スライム (角A 泥棒拠点隣接マスからスタート)
-        { id: 'S1', name: '泥棒 1', type: 'SLIME', q: 0, r: -9, baseSpeed: 6, items: [], isJailed: false, color: '#ef4444', plot: [], endAction: 'NONE' },
-        { id: 'S2', name: '泥棒 2', type: 'SLIME', q: -1, r: -9, baseSpeed: 6, items: [], isJailed: false, color: '#f87171', plot: [], endAction: 'NONE' },
-        { id: 'S3', name: '泥棒 3', type: 'SLIME', q: 1, r: -10, baseSpeed: 6, items: [], isJailed: false, color: '#dc2626', plot: [], endAction: 'NONE' },
-
-        // 泥棒猫 (角B, 角Fからスタート)
-        { id: 'C1', name: '泥棒猫 1', type: 'CAT', q: -10, r: 0, baseSpeed: 7, items: [], isJailed: false, color: '#f59e0b', plot: [], endAction: 'NONE' },
-        { id: 'C2', name: '泥棒猫 2', type: 'CAT', q: 10, r: -10, baseSpeed: 7, items: [], isJailed: false, color: '#fbbf24', plot: [], endAction: 'NONE' }
-    ];
-
-    let groundItems = [];
-
-    // 初期お宝を研究所に配置
-    let labCoord = getCornerCoord(labNode);
-    groundItems.push({ id: 'T1', name: 'お宝', weight: 5, q: labCoord.q, r: labCoord.r, color: '#ffd700' });
-
-    // 10個の監視カメラ配置
-    let cameras = [];
-    ['C', 'D', 'E'].forEach(corner => {
-        let coord = getCornerCoord(corner);
-        let neighbors = getNeighbors(coord.q, coord.r);
-        for(let i = 0; i < 3 && i < neighbors.length; i++) {
-            cameras.push({ q: neighbors[i].q, r: neighbors[i].r });
+    // 監視カメラ 10個の設置 (右側3角: C, D, E 周辺に各3個 + 牢屋横に1個)
+    let cameraPositions = [];
+    [cornerC, cornerD, cornerE].forEach(corner => {
+        let nbs = getNeighbors(corner.q, corner.r);
+        for (let i = 0; i < Math.min(3, nbs.length); i++) {
+            cameraPositions.push(nbs[i]);
         }
     });
-    let jailNeighbors = getNeighbors(0, 9);
-    if(jailNeighbors.length > 3) cameras.push({ q: jailNeighbors[3].q, r: jailNeighbors[3].r });
+    // 牢屋隣の追加カメラ
+    let jailNbs = getNeighbors(cornerD.q, cornerD.r);
+    if (jailNbs.length > 0) cameraPositions.push(jailNbs[jailNbs.length - 1]);
 
-    function getNeighbors(sq, sr) {
-        return [
-            { q: sq + 1, r: sr }, { q: sq - 1, r: sr },
-            { q: sq, r: sr + 1 }, { q: sq, r: sr - 1 },
-            { q: sq + 1, r: sr - 1 }, { q: sq - 1, r: sr + 1 }
-        ].filter(p => hexDistance(0, 0, p.q, p.r) <= HEX_RADIUS);
-    }
+    // 初期ユニット構成と仕様に基づく初期配置
+    // 泥棒拠点(角A: 0, -10) の隣接マスにスライム3名
+    let thiefNeighbors = getNeighbors(cornerA.q, cornerA.r);
+
+    let units = [
+        // 警察 (角D: 0, 10 の上隣・下隣)
+        { id: 'P1', name: '警察 1', type: 'POLICE', q: -1, r: 10, baseSpeed: 6, items: [{ name: '電撃銃', weight: 1 }, { name: '台車', weight: 2 }], isJailed: false, color: '#3b82f6', plot: [], endAction: 'NONE' },
+        { id: 'P2', name: '警察 2', type: 'POLICE', q: 1, r: 9, baseSpeed: 6, items: [{ name: '鍵', weight: 1 }], isJailed: false, color: '#60a5fa', plot: [], endAction: 'NONE' },
+
+        // 警察犬 (警察署の左隣: 0, 9 からスタート)
+        { id: 'D1', name: '警察犬 1', type: 'DOG', q: 0, r: 9, baseSpeed: 8, items: [], isJailed: false, color: '#a855f7', plot: [], endAction: 'NONE' },
+
+        // 泥棒スライム (角Aの隣接マスからスタート)
+        { id: 'S1', name: '泥棒 1', type: 'SLIME', q: thiefNeighbors[0].q, r: thiefNeighbors[0].r, baseSpeed: 6, items: [], isJailed: false, color: '#ef4444', plot: [], endAction: 'NONE' },
+        { id: 'S2', name: '泥棒 2', type: 'SLIME', q: thiefNeighbors[1].q, r: thiefNeighbors[1].r, baseSpeed: 6, items: [], isJailed: false, color: '#f87171', plot: [], endAction: 'NONE' },
+        { id: 'S3', name: '泥棒 3', type: 'SLIME', q: thiefNeighbors[2].q, r: thiefNeighbors[2].r, baseSpeed: 6, items: [], isJailed: false, color: '#dc2626', plot: [], endAction: 'NONE' },
+
+        // 泥棒猫 (角B, 角F からスタート)
+        { id: 'C1', name: '泥棒猫 1', type: 'CAT', q: cornerB.q, r: cornerB.r, baseSpeed: 7, items: [], isJailed: false, color: '#f59e0b', plot: [], endAction: 'NONE' },
+        { id: 'C2', name: '泥棒猫 2', type: 'CAT', q: cornerF.q, r: cornerF.r, baseSpeed: 7, items: [], isJailed: false, color: '#fbbf24', plot: [], endAction: 'NONE' }
+    ];
+
+    // ドロップアイテム (お宝は研究所に1個)
+    let groundItems = [
+        { id: 'T1', name: 'お宝', weight: 5, q: labPos.q, r: labPos.r, color: '#ffd700' }
+    ];
 
     let selectedUnitIndex = 0;
 
@@ -120,43 +134,11 @@ function initGame() {
         logBox.scrollTop = logBox.scrollHeight;
     }
 
-    // 5ターンごとにランダム空きマスへアイテム10個生成 (上限50個)
-    function spawnRandomItems() {
-        if (groundItems.length >= 50) return;
-        let spawnedCount = 0;
-        let attempts = 0;
-        while (spawnedCount < 10 && attempts < 100 && groundItems.length < 50) {
-            attempts++;
-            let randQ = Math.floor(Math.random() * (HEX_RADIUS * 2 + 1)) - HEX_RADIUS;
-            let randR = Math.floor(Math.random() * (HEX_RADIUS * 2 + 1)) - HEX_RADIUS;
-            if (hexDistance(0, 0, randQ, randR) <= HEX_RADIUS) {
-                let occupied = groundItems.some(it => it.q === randQ && it.r === randR) ||
-                               units.some(u => u.q === randQ && u.r === randR);
-                if (!occupied) {
-                    let itemName = (Math.random() < 0.5) ? '骨' : 'スプレー缶';
-                    let itemWeight = (itemName === '骨') ? 2 : 1;
-                    let itemColor = (itemName === '骨') ? '#e5e7eb' : '#38bdf8';
-                    groundItems.push({
-                        id: 'item_' + Date.now() + '_' + spawnedCount,
-                        name: itemName,
-                        weight: itemWeight,
-                        q: randQ,
-                        r: randR,
-                        color: itemColor
-                    });
-                    spawnedCount++;
-                }
-            }
-        }
-        if (spawnedCount > 0) {
-            logEvent(`🎁 マップ上に新しいアイテムが ${spawnedCount} 個追加発生しました！ (現在計 ${groundItems.length} 個)`, 'CAT');
-        }
-    }
-
+    // メイン描画
     function drawGrid() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // 六角形タイルの描画
+        // マップタイルの描画 (全331マス)
         for (let q = -HEX_RADIUS; q <= HEX_RADIUS; q++) {
             let r1 = Math.max(-HEX_RADIUS, -q - HEX_RADIUS);
             let r2 = Math.min(HEX_RADIUS, -q + HEX_RADIUS);
@@ -166,55 +148,41 @@ function initGame() {
                 let fillColor = '#1e293b';
                 let strokeColor = '#334155';
 
-                let posA = getCornerCoord('A');
-                let posB = getCornerCoord('B');
-                let posC = getCornerCoord('C');
-                let posD = getCornerCoord('D'); // r=9
-                let posE = getCornerCoord('E');
-                let posF = getCornerCoord('F');
+                // 角・施設の塗り分け
+                if (q === cornerA.q && r === cornerA.r) fillColor = '#450a0a'; // 泥棒拠点 (赤黒)
+                if (q === cornerD.q && r === cornerD.r) fillColor = '#4c0519'; // 警察拠点 & 6角形牢屋
+                if (q === labPos.q && r === labPos.r) fillColor = '#1e3a8a';   // 研究所 (青)
+                if (q === powerPos.q && r === powerPos.r) fillColor = '#78350f'; // 発電所 (黄褐色)
 
-                if (q === posD.q && r === posD.r) fillColor = '#4a1d24'; // 牢屋・警察拠点
-                if (q === posA.q && r === posA.r) fillColor = '#3f1d24'; // 泥棒拠点
-
-                let labPos = getCornerCoord(labNode);
-                if (q === labPos.q && r === labPos.r) fillColor = '#1e3a8a'; // 研究所
-
-                let powPos = getCornerCoord(powerNode);
-                if (q === powPos.q && r === powPos.r) fillColor = (powerHackedTurns > 0) ? '#451a03' : '#d97706'; // 発電所
-
-                if (isGoalRevealed) {
-                    let goalPos = getCornerCoord(activeGoalNode);
-                    if (q === goalPos.q && r === goalPos.r) fillColor = '#064e3b';
+                if (isGoalActive && q === targetGoalCorner.q && r === targetGoalCorner.r) {
+                    fillColor = '#064e3b'; // 運送班ゴール (緑)
                 }
 
                 drawHexagon(pix.x, pix.y, TILE_SIZE - 1, fillColor, strokeColor);
 
-                // 建物ラベルを描画
-                if (q === posD.q && r === posD.r) drawBuildingLabel(pix.x, pix.y, "牢屋 (警察拠点)", "#ef4444", "right");
-                if (q === posA.q && r === posA.r) drawBuildingLabel(pix.x, pix.y, "泥棒拠点", "#f87171", "left");
-                if (q === labPos.q && r === labPos.r) drawBuildingLabel(pix.x, pix.y, "研究所 (お宝)", "#60a5fa", "top");
-                if (q === powPos.q && r === powPos.r) drawBuildingLabel(pix.x, pix.y, (powerHackedTurns > 0) ? "発電所(ハック中)" : "発電所", "#fbbf24", "bottom");
-
-                if (isGoalRevealed) {
-                    let goalPos = getCornerCoord(activeGoalNode);
-                    if (q === goalPos.q && r === goalPos.r) drawBuildingLabel(pix.x, pix.y, "運送班 (ゴール)", "#34d399", "top");
+                // 建造物ラベルの表示
+                if (q === cornerA.q && r === cornerA.r) drawBuildingLabel(pix.x, pix.y, "泥棒拠点", "#f87171", "left");
+                if (q === cornerD.q && r === cornerD.r) drawBuildingLabel(pix.x, pix.y, "警察拠点/牢屋", "#fb7185", "right");
+                if (q === labPos.q && r === labPos.r) drawBuildingLabel(pix.x, pix.y, "研究所(お宝)", "#60a5fa", "top");
+                if (q === powerPos.q && r === powerPos.r) drawBuildingLabel(pix.x, pix.y, "発電所", "#f59e0b", "bottom");
+                if (isGoalActive && q === targetGoalCorner.q && r === targetGoalCorner.r) {
+                    drawBuildingLabel(pix.x, pix.y, "運送班(ゴール)", "#34d399", "top");
                 }
             }
         }
 
-        // 監視カメラの描画 (黒ポール＋赤レンズ)
-        cameras.forEach(cam => {
+        // 監視カメラの描画 (ポール + カメラレンズ)
+        cameraPositions.forEach(cam => {
             const pix = hexToPixel(cam.q, cam.r);
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(pix.x - 2, pix.y - 8, 4, 10); // ポール
             ctx.beginPath();
-            ctx.arc(pix.x, pix.y, 4, 0, Math.PI * 2);
-            ctx.fillStyle = (powerHackedTurns > 0) ? '#6b7280' : '#ef4444';
+            ctx.arc(pix.x, pix.y - 8, 4, 0, Math.PI * 2);
+            ctx.fillStyle = (powerPlantHackedTurns > 0) ? '#64748b' : '#ef4444'; // ハッキング時は赤点滅オフ
             ctx.fill();
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
         });
 
-        // 移動ラインの描画
+        // 移動ラインの描画 (他ユニットのルートも可視化)
         units.forEach((u, idx) => {
             if (u.isJailed || !u.plot || u.plot.length === 0) return;
             let isSelected = (idx === selectedUnitIndex);
@@ -227,11 +195,7 @@ function initGame() {
                 ctx.lineTo(pix.x, pix.y);
             });
 
-            if (u.type === 'POLICE') ctx.strokeStyle = isSelected ? '#60a5fa' : 'rgba(96, 165, 250, 0.5)';
-            else if (u.type === 'CAT') ctx.strokeStyle = isSelected ? '#fbbf24' : 'rgba(251, 191, 36, 0.5)';
-            else if (u.type === 'DOG') ctx.strokeStyle = isSelected ? '#c084fc' : 'rgba(192, 132, 252, 0.5)';
-            else ctx.strokeStyle = isSelected ? '#f87171' : 'rgba(248, 113, 113, 0.5)';
-
+            ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(148, 163, 184, 0.4)';
             ctx.lineWidth = isSelected ? 3.5 : 2;
             ctx.setLineDash(isSelected ? [] : [4, 4]);
             ctx.stroke();
@@ -246,29 +210,31 @@ function initGame() {
             });
         });
 
-        // 落とし物アイテム
+        // フィールドアイテムの描画
         groundItems.forEach(item => {
             const pix = hexToPixel(item.q, item.r);
             ctx.beginPath();
-            ctx.arc(pix.x, pix.y, 5, 0, Math.PI * 2);
+            ctx.arc(pix.x, pix.y, item.name === 'お宝' ? 7 : 5, 0, Math.PI * 2);
             ctx.fillStyle = item.color;
             ctx.fill();
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1.5;
             ctx.stroke();
         });
 
-        // ユニット
+        // ユニットの描画
         units.forEach((u, idx) => {
             if (u.isJailed) return;
             const pix = hexToPixel(u.q, u.r);
 
             ctx.beginPath();
             if (u.type === 'POLICE') {
-                ctx.moveTo(pix.x, pix.y - 10);
+                ctx.moveTo(pix.x, pix.y - 9);
                 ctx.lineTo(pix.x - 8, pix.y + 7);
                 ctx.lineTo(pix.x + 8, pix.y + 7);
                 ctx.closePath();
+            } else if (u.type === 'DOG') {
+                ctx.arc(pix.x, pix.y, 7, 0, Math.PI * 2);
             } else {
                 ctx.arc(pix.x, pix.y, 8, 0, Math.PI * 2);
             }
@@ -279,27 +245,6 @@ function initGame() {
             ctx.lineWidth = (idx === selectedUnitIndex) ? 3 : 1;
             ctx.stroke();
         });
-    }
-
-    function drawBuildingLabel(x, y, text, color, position) {
-        ctx.font = 'bold 11px sans-serif';
-        let metrics = ctx.measureText(text);
-        let padding = 4;
-        let lx = x, ly = y;
-
-        if (position === 'right') { lx = x + 20; ly = y + 4; }
-        else if (position === 'left') { lx = x - metrics.width - 20; ly = y + 4; }
-        else if (position === 'top') { lx = x - metrics.width / 2; ly = y - 18; }
-        else if (position === 'bottom') { lx = x - metrics.width / 2; ly = y + 24; }
-
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-        ctx.fillRect(lx - padding, ly - 11, metrics.width + padding * 2, 15);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(lx - padding, ly - 11, metrics.width + padding * 2, 15);
-
-        ctx.fillStyle = color;
-        ctx.fillText(text, lx, ly);
     }
 
     function drawHexagon(x, y, radius, fillColor, strokeColor) {
@@ -319,7 +264,27 @@ function initGame() {
         ctx.stroke();
     }
 
-    // クリック処理（再押しでプロットリセット）
+    function drawBuildingLabel(x, y, text, color, align = 'top') {
+        ctx.font = 'bold 10px sans-serif';
+        const metrics = ctx.measureText(text);
+        let lx = x, ly = y;
+
+        if (align === 'left') lx -= (metrics.width + 18);
+        if (align === 'right') lx += 18;
+        if (align === 'top') ly -= 18;
+        if (align === 'bottom') ly += 22;
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        ctx.fillRect(lx - 4, ly - 10, metrics.width + 8, 14);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(lx - 4, ly - 10, metrics.width + 8, 14);
+
+        ctx.fillStyle = color;
+        ctx.fillText(text, lx, ly);
+    }
+
+    // クリック＆プロット操作
     canvas.addEventListener('click', (e) => {
         const rect = canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
@@ -341,23 +306,20 @@ function initGame() {
             }
         }
 
-        if (targetTile) {
-            handleHexClick(targetTile.q, targetTile.r);
-        }
+        if (targetTile) handleHexClick(targetTile.q, targetTile.r);
     });
 
     function handleHexClick(q, r) {
-        let selUnit = units[selectedUnitIndex];
+        let clickedUnitIdx = units.findIndex(u => u.q === q && u.r === r && !u.isJailed);
 
-        // 選択中ユニット自身をクリックした場合はプロットリセット
-        if (selUnit && q === selUnit.q && r === selUnit.r) {
-            selUnit.plot = [];
+        // 選択中ユニット自体のクリックでリセット
+        if (clickedUnitIdx === selectedUnitIndex) {
+            units[selectedUnitIndex].plot = [];
             updateUI();
             drawGrid();
             return;
         }
 
-        let clickedUnitIdx = units.findIndex(u => u.q === q && u.r === r && !u.isJailed);
         if (clickedUnitIdx !== -1 && currentPhase === 'PLOT') {
             selectedUnitIndex = clickedUnitIdx;
             updateUI();
@@ -365,25 +327,21 @@ function initGame() {
             return;
         }
 
+        let selUnit = units[selectedUnitIndex];
         if (!selUnit || currentPhase !== 'PLOT') return;
 
         let maxMov = getMovableSpeed(selUnit);
 
-        let existingIndex = selUnit.plot.findIndex(p => p.q === q && p.r === r);
-        if (existingIndex !== -1) {
-            selUnit.plot = selUnit.plot.slice(0, existingIndex + 1);
-            updateUI();
-            drawGrid();
-            return;
-        }
-
+        // 最短経路でプロット延長
         let startPos = (selUnit.plot.length > 0) ? selUnit.plot[selUnit.plot.length - 1] : { q: selUnit.q, r: selUnit.r };
-        let pathToTarget = findShortestPath(startPos.q, startPos.r, q, r);
+        let path = findShortestPath(startPos.q, startPos.r, q, r);
 
-        if (pathToTarget && pathToTarget.length > 0) {
-            let spaceLeft = maxMov - selUnit.plot.length;
-            let stepsToAdd = pathToTarget.slice(0, spaceLeft);
-            selUnit.plot.push(...stepsToAdd);
+        if (path && path.length > 0) {
+            for (let step of path) {
+                if (selUnit.plot.length < maxMov) {
+                    selUnit.plot.push(step);
+                }
+            }
             updateUI();
             drawGrid();
         }
@@ -402,8 +360,8 @@ function initGame() {
                 return path.slice(1);
             }
 
-            let neighbors = getNeighbors(curr.q, curr.r);
-            for (let n of neighbors) {
+            let nbs = getNeighbors(curr.q, curr.r);
+            for (let n of nbs) {
                 let key = `${n.q},${n.r}`;
                 if (!visited.has(key)) {
                     visited.add(key);
@@ -411,9 +369,10 @@ function initGame() {
                 }
             }
         }
-        return [];
+        return null;
     }
 
+    // 移動実行とターン進行
     function executeMovementPhase() {
         currentPhase = 'MOVING';
         document.getElementById('phase-display').innerText = '2. 一斉コマ送り移動中...';
@@ -426,11 +385,22 @@ function initGame() {
             let anyMoved = false;
 
             units.forEach(u => {
-                if (u.plot && u.plot.length > 0) {
+                if (u.plot.length > 0) {
                     let nextPos = u.plot.shift();
                     u.q = nextPos.q;
                     u.r = nextPos.r;
                     anyMoved = true;
+
+                    // 発電所侵入によるハッキング
+                    if (u.q === powerPos.q && u.r === powerPos.r) {
+                        if (u.type === 'SLIME' || u.type === 'CAT') {
+                            powerPlantHackedTurns = 5;
+                            logEvent(`⚡ ${u.name} が発電所をハッキング！ 5ターン監視カメラ停止＆牢屋緊急解放！`, u.type);
+                        } else if (u.type === 'POLICE') {
+                            powerPlantHackedTurns = 0;
+                            logEvent(`🛡️ ${u.name} が発電所を復旧・セキュリティを再起動！`, 'POLICE');
+                        }
+                    }
 
                     // アイテム拾い
                     for (let i = groundItems.length - 1; i >= 0; i--) {
@@ -438,25 +408,11 @@ function initGame() {
                         if (item.q === u.q && item.r === u.r) {
                             u.items.push(item);
                             logEvent(`${u.name} が ${item.name} を入手！`, u.type);
-                            groundItems.splice(i, 1);
-
-                            if (item.name === 'お宝' && !isGoalRevealed) {
-                                isGoalRevealed = true;
-                                logEvent(`🚨 お宝が取得された！ 運送班(ゴール)が判明！`, 'SLIME');
+                            if (item.name === 'お宝') {
+                                isGoalActive = true;
+                                logEvent(`🚨 お宝が手にされた！ 運送班(ゴール)がアクティブ化！`, 'SLIME');
                             }
-                        }
-                    }
-
-                    // 発電所チェック
-                    let powPos = getCornerCoord(powerNode);
-                    if (u.q === powPos.q && u.r === powPos.r) {
-                        if (u.type === 'SLIME' || u.type === 'CAT') {
-                            powerHackedTurns = 5;
-                            logEvent(`⚡ ${u.name} が発電所をハッキング！5ターン全カメラ停止＆牢屋解放！`, 'SLIME');
-                            units.filter(s => s.isJailed).forEach(s => { s.isJailed = false; });
-                        } else if (u.type === 'POLICE') {
-                            powerHackedTurns = 0;
-                            logEvent(`🔧 警察が発電所を修復・再起動しました！`, 'POLICE');
+                            groundItems.splice(i, 1);
                         }
                     }
 
@@ -465,25 +421,12 @@ function initGame() {
                         units.filter(s => s.type === 'SLIME' && !s.isJailed).forEach(sli => {
                             if (pol.q === sli.q && pol.r === sli.r) {
                                 sli.isJailed = true;
-                                sli.q = 0; sli.r = 9; // r=9 牢屋
+                                sli.q = cornerD.q; sli.r = cornerD.r; // 牢屋へ収監
                                 thievesJailed++;
-                                logEvent(`🚨 ${pol.name} が ${sli.name} を逮捕！ 牢屋へ収監。`, 'POLICE');
+                                logEvent(`🚨 ${pol.name} が ${sli.name} を逮捕し牢屋へ収監！`, 'POLICE');
                             }
                         });
                     });
-
-                    // 運送班ゴール判定
-                    if (isGoalRevealed) {
-                        let goalPos = getCornerCoord(activeGoalNode);
-                        if (u.q === goalPos.q && u.r === goalPos.r) {
-                            let tIdx = u.items.findIndex(it => it.name === 'お宝');
-                            if (tIdx !== -1) {
-                                u.items.splice(tIdx, 1);
-                                treasuresDelivered++;
-                                logEvent(`🎉 ${u.name} がお宝を運送班へ届けた！ 泥棒陣営の勝利！`, 'SLIME');
-                            }
-                        }
-                    }
                 }
             });
 
@@ -498,18 +441,29 @@ function initGame() {
 
     function finishTurn() {
         gameTurn++;
-        if (powerHackedTurns > 0) powerHackedTurns--;
+        currentPhase = 'PLOT';
 
-        if (gameTurn % 5 === 0) {
-            spawnRandomItems();
+        if (powerPlantHackedTurns > 0) powerPlantHackedTurns--;
+
+        // 5ターンごとのアイテム一括10個スポーン (上限50個)
+        if (gameTurn % 5 === 0 && groundItems.length < 50) {
+            let spawned = 0;
+            for (let i = 0; i < 30; i++) {
+                let rq = Math.floor(Math.random() * (HEX_RADIUS * 2 + 1)) - HEX_RADIUS;
+                let rr = Math.floor(Math.random() * (HEX_RADIUS * 2 + 1)) - HEX_RADIUS;
+                if (isValidHex(rq, rr) && groundItems.length < 50) {
+                    let itemName = (Math.random() < 0.5) ? '骨' : 'スプレー缶';
+                    let itemColor = (itemName === '骨') ? '#e2e8f0' : '#38bdf8';
+                    groundItems.push({ id: 'DROP_' + Date.now() + '_' + i, name: itemName, weight: 1, q: rq, r: rr, color: itemColor });
+                    spawned++;
+                    if (spawned >= 10) break;
+                }
+            }
+            logEvent(`📦 5ターン経過！ マップ上に新たなアイテムが10個出現しました！`, 'normal');
         }
 
-        currentPhase = 'PLOT';
         document.getElementById('phase-display').innerText = '1. 計画フェイズ (Plot Phase)';
         document.getElementById('turn-counter').innerText = `TURN ${gameTurn}`;
-
-        if (treasuresDelivered >= 1) alert('🎉 泥棒陣営の勝利！ お宝の運搬に成功しました！');
-        else if (thievesJailed >= 3) alert('🚨 警察陣営の勝利！ すべての泥棒を逮捕しました！');
 
         updateUI();
         drawGrid();
@@ -523,10 +477,10 @@ function initGame() {
         document.getElementById('unit-pos').innerText = `(${u.q}, ${u.r})`;
 
         let maxMov = getMovableSpeed(u);
-        let remaining = maxMov - (u.plot ? u.plot.length : 0);
+        let remaining = maxMov - u.plot.length;
 
         if (remaining > 0) {
-            document.getElementById('unit-plot-count').innerText = `${u.plot ? u.plot.length : 0} / ${maxMov} ステップ (あと ${remaining} マス選択必須)`;
+            document.getElementById('unit-plot-count').innerText = `${u.plot.length} / ${maxMov} ステップ (あと ${remaining} マス選択必須)`;
             document.getElementById('btn-execute-phase').disabled = true;
             document.getElementById('btn-execute-phase').innerText = `▶ 計画完了・一斉移動実行 (あと${remaining}マス選択が必要)`;
         } else {
@@ -559,25 +513,12 @@ function initGame() {
         drawGrid();
     });
 
-    document.getElementById('btn-action-throw').addEventListener('click', () => {
-        let u = units[selectedUnitIndex];
-        if (u.items.length > 0) {
-            let droppedItem = u.items.pop();
-            droppedItem.q = u.q; droppedItem.r = u.r;
-            groundItems.push(droppedItem);
-            logEvent(`${u.name} が足元に ${droppedItem.name} を置いた。`, u.type);
-            updateUI();
-            drawGrid();
-        }
-    });
-
     updateUI();
     drawGrid();
 }
 
-// DOM読み込み完了時に即座に実行（読み込み遅延防止）
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initGame);
-} else {
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
     initGame();
+} else {
+    window.addEventListener('DOMContentLoaded', initGame);
 }
