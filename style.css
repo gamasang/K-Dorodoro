@@ -155,7 +155,6 @@ button:disabled {
 button.btn-success { background: var(--accent-green); }
 button.btn-danger { background: var(--accent-red); }
 button.btn-warning { background: var(--accent-yellow); color: #111; }
-button.btn-secondary { background: #4b5563; }
 
 .guide-section {
     display: flex;
