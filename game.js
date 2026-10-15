@@ -80,25 +80,25 @@ window.addEventListener('DOMContentLoaded', () => {
         logBox.scrollTop = logBox.scrollHeight;
     }
 
-    // キャンバス描画エンジン
+    // キャンバス描画エンジン（明確で明るいグラフィック設定）
     function drawGrid() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // 六角形タイルの描画 (横向き/Pointy-topped)
+        // 六角形タイルの描画 (明るい枠線・施設カラー)
         for (let q = -HEX_RADIUS; q <= HEX_RADIUS; q++) {
             let r1 = Math.max(-HEX_RADIUS, -q - HEX_RADIUS);
             let r2 = Math.min(HEX_RADIUS, -q + HEX_RADIUS);
             for (let r = r1; r <= r2; r++) {
                 const pix = hexToPixel(q, r);
 
-                let fillColor = '#1a202c';
-                let strokeColor = '#2d3748';
+                let fillColor = '#222a3a'; // 通常タイル（見やすい濃紺）
+                let strokeColor = '#3a4760'; // タイル枠線（ハッキリしたライン）
 
-                // 施設の色分け表示 (横向きレイアウト)
-                if (q === 0 && r === 10) fillColor = '#4a1d24'; // 5角形牢屋 (右側警察拠点)
-                if ((q === 0 && r === -15) || (q === -15 && r === 0)) fillColor = '#1e3a8a'; // 研究所 (左側お宝)
-                if ((q === 15 && r === -15) || (q === -10 && r === -3)) fillColor = '#064e3b'; // 運送班 (左側ゴール)
-                if ((q === -15 && r === 15) || (q === 15 && r === 0)) fillColor = '#4c1d95'; // 抜け道 (上下ショートカット)
+                // 施設の色分け表示 (鮮明なビビッドカラー)
+                if (q === 0 && r === 10) { fillColor = '#7f1d1d'; strokeColor = '#ef4444'; } // 牢屋 (赤紫)
+                if ((q === 0 && r === -15) || (q === -15 && r === 0)) { fillColor = '#1e3a8a'; strokeColor = '#60a5fa'; } // 研究所 (青)
+                if ((q === 15 && r === -15) || (q === -10 && r === -3)) { fillColor = '#064e3b'; strokeColor = '#34d399'; } // 運送班 (緑)
+                if ((q === -15 && r === 15) || (q === 15 && r === 0)) { fillColor = '#4c1d95'; strokeColor = '#a78bfa'; } // 抜け道 (紫)
 
                 drawHexagon(pix.x, pix.y, TILE_SIZE - 1, fillColor, strokeColor);
             }
@@ -110,18 +110,17 @@ window.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath();
             let startPix = hexToPixel(selUnit.q, selUnit.r);
             ctx.moveTo(startPix.x, startPix.y);
-            selUnit.plot.forEach((p, idx) => {
+            selUnit.plot.forEach((p) => {
                 let pix = hexToPixel(p.q, p.r);
                 ctx.lineTo(pix.x, pix.y);
             });
-            ctx.strokeStyle = (selUnit.type === 'POLICE') ? '#60a5fa' : '#f87171';
+            ctx.strokeStyle = (selUnit.type === 'POLICE') ? '#38bdf8' : '#f87171';
             ctx.lineWidth = 3;
-            ctx.setLineDash([5, 5]);
+            ctx.setLineDash([]); // 安全な空配列渡し
             ctx.stroke();
-            ctx.setLineDash([]);
 
-            // プロット地点にマーカーを描画
-            selUnit.plot.forEach((p, idx) => {
+            // プロット地点に白いマーカーを描画
+            selUnit.plot.forEach((p) => {
                 let pix = hexToPixel(p.q, p.r);
                 ctx.beginPath();
                 ctx.arc(pix.x, pix.y, 4, 0, Math.PI * 2);
@@ -134,11 +133,11 @@ window.addEventListener('DOMContentLoaded', () => {
         groundItems.forEach(item => {
             const pix = hexToPixel(item.q, item.r);
             ctx.beginPath();
-            ctx.arc(pix.x, pix.y, 5, 0, Math.PI * 2);
+            ctx.arc(pix.x, pix.y, 6, 0, Math.PI * 2);
             ctx.fillStyle = item.color;
             ctx.fill();
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1.5;
             ctx.stroke();
         });
 
@@ -150,19 +149,19 @@ window.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath();
             if (u.type === 'POLICE') {
                 // 警察：円錐（三角形）
-                ctx.moveTo(pix.x, pix.y - 8);
-                ctx.lineTo(pix.x - 7, pix.y + 6);
-                ctx.lineTo(pix.x + 7, pix.y + 6);
+                ctx.moveTo(pix.x, pix.y - 9);
+                ctx.lineTo(pix.x - 8, pix.y + 7);
+                ctx.lineTo(pix.x + 8, pix.y + 7);
                 ctx.closePath();
             } else {
                 // 泥棒・猫：球体（円）
-                ctx.arc(pix.x, pix.y, 7, 0, Math.PI * 2);
+                ctx.arc(pix.x, pix.y, 8, 0, Math.PI * 2);
             }
 
             ctx.fillStyle = u.color;
             ctx.fill();
             ctx.strokeStyle = (idx === selectedUnitIndex) ? '#ffffff' : '#000000';
-            ctx.lineWidth = (idx === selectedUnitIndex) ? 3 : 1;
+            ctx.lineWidth = (idx === selectedUnitIndex) ? 3 : 1.5;
             ctx.stroke();
         });
 
@@ -170,7 +169,7 @@ window.addEventListener('DOMContentLoaded', () => {
         policeDogs.forEach(dog => {
             const pix = hexToPixel(dog.q, dog.r);
             ctx.beginPath();
-            ctx.arc(pix.x, pix.y, 6, 0, Math.PI * 2);
+            ctx.arc(pix.x, pix.y, 7, 0, Math.PI * 2);
             ctx.fillStyle = '#a855f7';
             ctx.fill();
             ctx.strokeStyle = '#ffffff';
@@ -271,9 +270,9 @@ window.addEventListener('DOMContentLoaded', () => {
         units.filter(u => u.type === 'CAT').forEach(cat => {
             if (cat.plot.length === 0) {
                 if (groundItems.length > 0) {
-                    let nearestItem = groundItems[0];
+                    let nearestItem = groundItems;
                     let step = getNextStepTowards(cat.q, cat.r, nearestItem.q, nearestItem.r);
-                    if (step && step.length > 0) cat.plot.push(step[0]);
+                    if (step && step.length > 0) cat.plot.push(step);
                 }
             }
         });
