@@ -29,8 +29,8 @@ let thievesJailed = 0;
 // ユニット構成: 警察(右・青) 2 vs 泥棒(左・赤) 4 + 猫(左・黄) 2
 let units = [
     // 警察 (右側配置・青・円錐▲)
-    { id: 'P1', name: '警察 1', type: 'POLICE', q: 0, r: 12, baseSpeed: 6, items: [{ name: '電撃銃', weight: 1 }, { name: '台車', weight: 2 }], isJailed: false, color: '#3b82f6', plot: [] },
-    { id: 'P2', name: '警察 2', type: 'POLICE', q: 1, r: 11, baseSpeed: 6, items: [{ name: '鍵', weight: 1 }], isJailed: false, color: '#60a5fa', plot: [] },
+    { id: 'P1', name: '警察 1', type: 'POLICE', q: 0, r: 12, baseSpeed: 6, items: [{ id: 'item_stun', name: '電撃銃', weight: 1 }, { id: 'item_cart', name: '台車', weight: 2 }], isJailed: false, color: '#3b82f6', plot: [] },
+    { id: 'P2', name: '警察 2', type: 'POLICE', q: 1, r: 11, baseSpeed: 6, items: [{ id: 'item_key1', name: '鍵', weight: 1 }], isJailed: false, color: '#60a5fa', plot: [] },
 
     // 泥棒スライム (左側配置・赤・球●)
     { id: 'S1', name: '泥棒 1', type: 'SLIME', q: 0, r: -15, baseSpeed: 6, items: [], isJailed: false, color: '#ef4444', plot: [] },
@@ -45,7 +45,7 @@ let units = [
 
 let policeDogs = []; // 警報時に追加される警察犬 (右側牢屋から出動・紫/NPC)
 
-// フィールド上に配置されたアイテム (左側の研究所やお宝ポイント)
+// フィールド上に配置されたアイテム
 let groundItems = [
     { id: 'T1', name: 'お宝', weight: 5, q: 0, r: -15, color: '#ffd700' },
     { id: 'T2', name: 'お宝', weight: 5, q: -15, r: 0, color: '#ffd700' },
@@ -64,6 +64,7 @@ function getMovableSpeed(unit) {
 // ログ出力 helper
 function logEvent(msg, type = 'normal') {
     const logBox = document.getElementById('event-log');
+    if (!logBox) return;
     const entry = document.createElement('div');
     entry.className = 'log-entry';
     let colorClass = '';
@@ -91,7 +92,7 @@ function drawGrid() {
             let fillColor = '#1a202c';
             let strokeColor = '#2d3748';
 
-            // 施設の色分け表示 (横向きレイアウト)
+            // 施設の色分け表示
             if (q === 0 && r === 10) fillColor = '#4a1d24'; // 5角形牢屋 (右側警察拠点)
             if ((q === 0 && r === -15) || (q === -15 && r === 0)) fillColor = '#1e3a8a'; // 研究所 (左側お宝)
             if ((q === 15 && r === -15) || (q === -10 && r === -3)) fillColor = '#064e3b'; // 運送班 (左側ゴール)
@@ -113,9 +114,18 @@ function drawGrid() {
         });
         ctx.strokeStyle = (selUnit.type === 'POLICE') ? '#60a5fa' : '#f87171';
         ctx.lineWidth = 3;
-        ctx.setLineDash();
+        ctx.setLineDash([4, 4]);
         ctx.stroke();
-        ctx.setLineDash([]);
+        ctx.setLineDash([]); // 正しく空配列でリセット
+
+        // プロット点の番号バッジ描画
+        selUnit.plot.forEach((p, idx) => {
+            let pix = hexToPixel(p.q, p.r);
+            ctx.beginPath();
+            ctx.arc(pix.x, pix.y, 5, 0, Math.PI * 2);
+            ctx.fillStyle = (idx === selUnit.plot.length - 1) ? '#f59e0b' : '#38bdf8';
+            ctx.fill();
+        });
     }
 
     // 落ちているアイテムの描画
@@ -185,7 +195,7 @@ function drawHexagon(x, y, radius, fillColor, strokeColor) {
     ctx.stroke();
 }
 
-// クリックインタラクション
+// クリックインタラクション (ステップ選択＆途中キャンセル)
 canvas.addEventListener('click', (e) => {
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
@@ -213,6 +223,7 @@ canvas.addEventListener('click', (e) => {
 });
 
 function handleHexClick(q, r) {
+    // 別の可動ユニットをクリックした場合：切り替え
     let clickedUnitIdx = units.findIndex(u => u.q === q && u.r === r && !u.isJailed);
     if (clickedUnitIdx !== -1 && currentPhase === 'PLOT') {
         selectedUnitIndex = clickedUnitIdx;
@@ -222,16 +233,34 @@ function handleHexClick(q, r) {
     }
 
     let selUnit = units[selectedUnitIndex];
-    if (selUnit && currentPhase === 'PLOT') {
-        let currentLastPos = (selUnit.plot.length > 0) ? selUnit.plot[selUnit.plot.length - 1] : { q: selUnit.q, r: selUnit.r };
-        let dist = hexDistance(currentLastPos.q, currentLastPos.r, q, r);
+    if (!selUnit || currentPhase !== 'PLOT') return;
 
-        let maxMov = getMovableSpeed(selUnit);
-        if (dist === 1 && selUnit.plot.length < maxMov) {
-            selUnit.plot.push({ q, r });
-            updateUI();
-            drawGrid();
-        }
+    // スタート位置（ユニット自身）をクリックした場合：全リセット
+    if (q === selUnit.q && r === selUnit.r) {
+        selUnit.plot = [];
+        updateUI();
+        drawGrid();
+        return;
+    }
+
+    // 既にプロット済みのマスをクリックした場合：そこまで途中キャンセル (Undo)
+    let existingIndex = selUnit.plot.findIndex(p => p.q === q && p.r === r);
+    if (existingIndex !== -1) {
+        selUnit.plot = selUnit.plot.slice(0, existingIndex); // クリックした手前まで戻す
+        updateUI();
+        drawGrid();
+        return;
+    }
+
+    // 隣接マスの1ステップ追加プロット
+    let currentLastPos = (selUnit.plot.length > 0) ? selUnit.plot[selUnit.plot.length - 1] : { q: selUnit.q, r: selUnit.r };
+    let dist = hexDistance(currentLastPos.q, currentLastPos.r, q, r);
+    let maxMov = getMovableSpeed(selUnit);
+
+    if (dist === 1 && selUnit.plot.length < maxMov) {
+        selUnit.plot.push({ q, r, action: 'none' });
+        updateUI();
+        drawGrid();
     }
 }
 
@@ -240,13 +269,18 @@ function executeMovementPhase() {
     currentPhase = 'MOVING';
     document.getElementById('phase-display').innerText = '2. 一斉コマ送り移動中...';
 
-    // 猫AIの自動プロット
+    // 猫AIの自動プロット (最大歩数分自動計算)
     units.filter(u => u.type === 'CAT').forEach(cat => {
-        if (cat.plot.length === 0) {
-            if (groundItems.length > 0) {
-                let nearestItem = groundItems;
-                let step = getNextStepTowards(cat.q, cat.r, nearestItem.q, nearestItem.r);
-                if (step && step.length > 0) cat.plot.push(step);
+        if (cat.plot.length === 0 && groundItems.length > 0) {
+            let maxMov = getMovableSpeed(cat);
+            let curQ = cat.q, curR = cat.r;
+            let target = groundItems[0];
+            for (let s = 0; s < maxMov; s++) {
+                let step = getNextStepTowards(curQ, curR, target.q, target.r);
+                if (step && step.length > 0) {
+                    curQ = step[0].q; curR = step[0].r;
+                    cat.plot.push({ q: curQ, r: curR, action: 'none' });
+                }
             }
         }
     });
@@ -264,6 +298,17 @@ function executeMovementPhase() {
                 u.q = nextPos.q;
                 u.r = nextPos.r;
                 anyMoved = true;
+
+                // 最終ステップでのアクション実行（所持品投擲/置くなど）
+                if (nextPos.action && nextPos.action !== 'none') {
+                    let itemIdx = u.items.findIndex(it => it.id === nextPos.action);
+                    if (itemIdx !== -1) {
+                        let dropped = u.items.splice(itemIdx, 1)[0];
+                        dropped.q = u.q; dropped.r = u.r;
+                        groundItems.push(dropped);
+                        logEvent(`${u.name} が目的地に ${dropped.name} を置いた！`, u.type);
+                    }
+                }
 
                 // アイテム自動拾い
                 for (let i = groundItems.length - 1; i >= 0; i--) {
@@ -350,16 +395,19 @@ function finishTurn() {
 
 function updateUI() {
     const u = units[selectedUnitIndex];
+    if (!u) return;
+
     document.getElementById('unit-type-badge').innerText = u.name;
     document.getElementById('unit-pos').innerText = `(${u.q}, ${u.r})`;
 
-    let movable = getMovableSpeed(u);
-    document.getElementById('unit-speed').innerText = `${movable} マス (重量減算済み)`;
-    document.getElementById('unit-plot-count').innerText = `${u.plot.length} / ${movable} ステップ`;
+    let maxMov = getMovableSpeed(u);
+    document.getElementById('unit-speed').innerText = `${maxMov} マス (全移動必須)`;
+    document.getElementById('unit-plot-count').innerText = `${u.plot.length} / ${maxMov} ステップ`;
 
     document.getElementById('treasure-score').innerText = `${treasuresDelivered} / 2 個`;
     document.getElementById('jail-count').innerText = `${thievesJailed} / 4 名`;
 
+    // 所持品リスト表示
     const invContainer = document.getElementById('unit-inventory');
     invContainer.innerHTML = '';
     if (u.items.length === 0) {
@@ -369,8 +417,40 @@ function updateUI() {
             invContainer.innerHTML += `<div class="inv-item">${it.name} (重さ${it.weight})</div>`;
         });
     }
+
+    // 最終マスアクションカードの表示制御
+    const finalCard = document.getElementById('final-step-card');
+    const actionSelect = document.getElementById('final-step-action-select');
+
+    if (u.plot.length === maxMov) {
+        finalCard.style.display = 'block';
+        actionSelect.innerHTML = '<option value="none">行動なし (そのまま待機)</option>';
+        u.items.forEach(it => {
+            actionSelect.innerHTML += `<option value="${it.id}">足元に置く: ${it.name}</option>`;
+        });
+
+        // 選択されたアクションを最後のプロット要素に保存
+        actionSelect.onchange = (e) => {
+            if (u.plot.length === maxMov) {
+                u.plot[u.plot.length - 1].action = e.target.value;
+            }
+        };
+    } else {
+        finalCard.style.display = 'none';
+    }
+
+    // 全マスプロット必須ルールのボタン有効化判定
+    const btnExecute = document.getElementById('btn-execute-phase');
+    if (u.plot.length < maxMov) {
+        btnExecute.disabled = true;
+        btnExecute.innerText = `▶ 移動設定中 (${u.plot.length}/${maxMov} マス)`;
+    } else {
+        btnExecute.disabled = false;
+        btnExecute.innerText = `▶ 計画完了・一斉移動実行`;
+    }
 }
 
+// ボタンイベント
 document.getElementById('btn-execute-phase').addEventListener('click', () => {
     if (currentPhase === 'PLOT') {
         executeMovementPhase();
@@ -381,18 +461,6 @@ document.getElementById('btn-reset-plot').addEventListener('click', () => {
     units[selectedUnitIndex].plot = [];
     updateUI();
     drawGrid();
-});
-
-document.getElementById('btn-action-throw').addEventListener('click', () => {
-    let u = units[selectedUnitIndex];
-    if (u.items.length > 0) {
-        let droppedItem = u.items.pop();
-        droppedItem.q = u.q; droppedItem.r = u.r;
-        groundItems.push(droppedItem);
-        logEvent(`${u.name} が足元に ${droppedItem.name} を置いた/パスした。`, u.type);
-        updateUI();
-        drawGrid();
-    }
 });
 
 // 初期化
