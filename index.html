@@ -251,7 +251,7 @@
 <body>
     <div id="game-container">
         <div id="canvas-wrapper">
-            <canvas width="960" height="750"></canvas>
+            <canvas id="gameCanvas" width="960" height="750"></canvas>
         </div>
 
         <div id="sidebar">
@@ -377,8 +377,8 @@
 
         // Cube/Axial 座標変換
         function hexToPixel(q, r) { 
-            const x = TILE\_SIZE \* (Math.sqrt(3) \* (r + q / 2)); 
-            const y = TILE\_SIZE \* (1.5 \* q); 
+            const x = TILE_SIZE * (Math.sqrt(3) * (r + q / 2)); 
+            const y = TILE_SIZE * (1.5 * q); 
             return { x: centerX + x, y: centerY + y }; 
         }
 
@@ -538,12 +538,11 @@
         function drawHexagon(x, y, radius, fillColor, strokeColor) { 
             ctx.beginPath(); 
             for (let i = 0; i &lt; 6; i++) { 
-                let angle = Math.PI / 180 \* (60 \* i + 30); 
-                // ★ 30度回転 
-                let x\_i = x + radius \* Math.cos(angle); 
-                let y\_i = y + radius \* Math.sin(angle); 
-                if (i === 0) ctx.moveTo(x\_i, y\_i); 
-                else ctx.lineTo(x\_i, y\_i); 
+                let angle = Math.PI / 180 * (60 * i + 30); // ★ 30度回転 
+                let x_i = x + radius * Math.cos(angle); 
+                let y_i = y + radius * Math.sin(angle); 
+                if (i === 0) ctx.moveTo(x_i, y_i); 
+                else ctx.lineTo(x_i, y_i); 
             } 
             ctx.closePath(); 
             ctx.fillStyle = fillColor; ctx.fill(); 
