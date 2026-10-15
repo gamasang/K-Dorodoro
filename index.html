@@ -15,7 +15,7 @@
         <div id="sidebar">
             <div class="card">
                 <div class="card-title">
-                    ケイドロドロ 戦況 (全マス移動必須ルール)
+                    ケイドロドロ 戦況 (横向きマップ)
                     <span class="status-badge" id="turn-counter">TURN 1</span>
                 </div>
                 <div class="phase-indicator" id="phase-display">
@@ -45,15 +45,15 @@
                 <div class="unit-info-grid">
                     <div class="info-item">
                         <div class="info-label">座標 (Q, R)</div>
-                        <div class="info-val" id="unit-pos">(0, 0)</div>
+                        <div class="info-val" id="unit-pos">(0, 12)</div>
                     </div>
                     <div class="info-item">
-                        <div class="info-label">移動必須距離</div>
+                        <div class="info-label">移動可能距離</div>
                         <div class="info-val" id="unit-speed">6 マス</div>
                     </div>
                     <div class="info-item" style="grid-column: span 2;">
-                        <div class="info-label">プロット進行度</div>
-                        <div class="info-val" id="unit-plot-count">0 / 6 マス (残り 6)</div>
+                        <div class="info-label">プロット済み移動経路</div>
+                        <div class="info-val" id="unit-plot-count">0 / 6 ステップ (全マスプロット必須)</div>
                     </div>
                 </div>
                 <div style="margin-top: 8px;">
@@ -64,40 +64,61 @@
                 </div>
             </div>
 
-            <!-- 最終マス到達時：アイテム使用選択モーダル/カード -->
-            <div class="card" id="item-use-card" style="display: none; border: 2px solid #f59e0b; background: #262118;">
-                <div class="card-title" style="color:#fbbf24;">
-                    🎁 最終目的地でのアイテム選択
-                </div>
-                <div style="font-size: 0.82em; margin-bottom: 8px; color: #f3f4f6;">
-                    移動完了マスに到達しました！移動後に使用するアイテムを選んでください。
-                </div>
-                <div class="btn-group" id="item-use-options">
-                    <!-- 動的に生成されるボタン -->
-                </div>
+            <div class="card btn-group">
+                <button class="btn-success" id="btn-execute-phase" disabled>▶ 計画完了・一斉移動実行 (全マス指定が必要)</button>
+                <button class="btn-warning" id="btn-reset-plot">↺ プロットやり直し</button>
+                <button class="btn-danger" id="btn-action-throw">🎯 アイテム足元投擲/パス</button>
             </div>
 
-            <div class="card btn-group">
-                <button class="btn-success" id="btn-execute-phase" disabled>▶ 全ユニット移動完了で一斉実行</button>
-                <button class="btn-warning" id="btn-reset-plot">↺ 現在のプロットを全リセット</button>
+            <div class="card" id="item-action-card" style="display:none; border:1px solid #f59e0b;">
+                <div class="card-title" style="color:#f59e0b;">🎁 最終ステップでのアクション選択</div>
+                <div style="font-size:0.8em; color:#d1d5db; margin-bottom:8px;">
+                    目的地で実行するアクションを選択してください：
+                </div>
+                <select id="item-action-select" style="width:100%; padding:6px; background:#171c26; color:#fff; border:1px solid #333c4d; border-radius:4px; font-size:0.85em;">
+                    <option value="NONE">アイテムを使用しない/置かない</option>
+                </select>
             </div>
 
             <div class="card">
                 <div class="card-title" style="color:#a7f3d0;">
-                    📖 操作＆新ルールガイド
+                    📖 ユニット＆マップ解説 (横向き配置)
                 </div>
                 <div class="guide-section">
+                    <div style="font-size: 0.78em; color: #9ca3af; font-weight: bold; margin-top: 2px;">【 ユニット (右:警察 / 左:泥棒) 】</div>
                     <div class="guide-item">
-                        <div class="guide-dot" style="background:#38bdf8;"></div>
-                        <div class="guide-text"><strong>【最大移動ルール】</strong> 移動可能数（例:6マス）ピッタリまでプロットを完了する必要があります。</div>
+                        <div class="guide-dot" style="background:#3b82f6;"></div>
+                        <div class="guide-text"><strong>警察 (右側/青/▲)</strong>: 右側からスタート。泥棒を追跡・逮捕し右側牢屋へ収監。</div>
+                    </div>
+                    <div class="guide-item">
+                        <div class="guide-dot" style="background:#ef4444;"></div>
+                        <div class="guide-text"><strong>泥棒スライム (左側/赤/●)</strong>: 左側からスタート。お宝(重さ5)所持で移動力1に減算。</div>
                     </div>
                     <div class="guide-item">
                         <div class="guide-dot" style="background:#f59e0b;"></div>
-                        <div class="guide-text"><strong>【途中キャンセル】</strong> 選択済みのプロットマスをもう一度押すと、その位置まで戻ってやり直せます。</div>
+                        <div class="guide-text"><strong>泥棒猫 (左側/黄/●)</strong>: 泥棒を補助するNPC。お宝やアイテムを自律回収する。</div>
                     </div>
                     <div class="guide-item">
-                        <div class="guide-dot" style="background:#10b981;"></div>
-                        <div class="guide-text"><strong>【最終アイテム使用】</strong> 最後のマスを選択した瞬間、アイテム使用の選択画面が開きます。</div>
+                        <div class="guide-dot" style="background:#a855f7; border: 1px solid #fff;"></div>
+                        <div class="guide-text"><strong>警察犬 (右側牢屋発/紫/●)</strong>: お宝持ち出し警報で右側拠点から出動。</div>
+                    </div>
+
+                    <div style="font-size: 0.78em; color: #9ca3af; font-weight: bold; margin-top: 6px;">【 構造物・施設 (横向き) 】</div>
+                    <div class="guide-item">
+                        <div class="guide-square" style="background:#4a1d24; border:1px solid #ef4444;"></div>
+                        <div class="guide-text"><strong>5角形牢屋 (右側拠点)</strong>: 逮捕された泥棒が収監される場所。鍵で解放。</div>
+                    </div>
+                    <div class="guide-item">
+                        <div class="guide-square" style="background:#1e3a8a; border:1px solid #3b82f6;"></div>
+                        <div class="guide-text"><strong>研究所 (左側エリア)</strong>: お宝(重さ5)が保管されている施設。</div>
+                    </div>
+                    <div class="guide-item">
+                        <div class="guide-square" style="background:#064e3b; border:1px solid #10b981;"></div>
+                        <div class="guide-text"><strong>運送班 (左側エリア)</strong>: お宝を持ち込んで勝利となるゴール。</div>
+                    </div>
+                    <div class="guide-item">
+                        <div class="guide-square" style="background:#4c1d95; border:1px solid #8b5cf6;"></div>
+                        <div class="guide-text"><strong>抜け道 (上下端エリア)</strong>: 泥棒側専用のショートカット通路。</div>
                     </div>
                 </div>
             </div>
