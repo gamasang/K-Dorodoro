@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ケイドロドロ 2D Web Edition (完全マップ仕様版)</title>
+    <title>ケイドロドロ 2D Web Edition</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,7 +15,7 @@
         <div id="sidebar">
             <div class="card">
                 <div class="card-title">
-                    ケイドロドロ 戦況 (正規6角マップ)
+                    ケイドロドロ 戦況 (正六角形マップ)
                     <span class="status-badge" id="turn-counter">TURN 1</span>
                 </div>
                 <div class="phase-indicator" id="phase-display">
@@ -40,12 +40,12 @@
             <div class="card">
                 <div class="card-title">
                     選択中のユニット
-                    <span class="status-badge" id="unit-type-badge">警察 1</span>
+                    <span class="status-badge" id="unit-type-badge">泥棒 1</span>
                 </div>
                 <div class="unit-info-grid">
                     <div class="info-item">
-                        <div class="info-label">現在座標 (Q, R)</div>
-                        <div class="info-val" id="unit-pos">(-1, 10)</div>
+                        <div class="info-label">座標 (Q, R)</div>
+                        <div class="info-val" id="unit-pos">(0, -9)</div>
                     </div>
                     <div class="info-item">
                         <div class="info-label">移動可能距離</div>
@@ -66,8 +66,8 @@
 
             <div class="card btn-group">
                 <button class="btn-success" id="btn-execute-phase" disabled>▶ 計画完了・一斉移動実行 (全マス指定が必要)</button>
-                <button class="btn-warning" id="btn-reset-plot">↺ プロットやり直し</button>
-                <button class="btn-danger" id="btn-action-throw">🎯 アイテム足元投擲/パス</button>
+                <button class="btn-reset-plot" id="btn-reset-plot">↺ プロットやり直し</button>
+                <button class="btn-action-throw" id="btn-action-throw">🎯 アイテム足元投擲/パス</button>
             </div>
 
             <div class="card" id="item-action-card" style="display:none; border:1px solid #f59e0b;">
@@ -82,28 +82,28 @@
 
             <div class="card">
                 <div class="card-title" style="color:#a7f3d0;">
-                    📖 マップ配置ガイド (時計回り A〜F)
+                    📖 施設＆マップ配置解説
                 </div>
                 <div class="guide-section">
                     <div class="guide-item">
-                        <div class="guide-dot" style="background:#ef4444;"></div>
-                        <div class="guide-text"><strong>角A (左)</strong>: 泥棒拠点 (泥棒スライム3名スタート)</div>
+                        <div class="guide-square" style="background:#1e3a8a; border:1px solid #3b82f6;"></div>
+                        <div class="guide-text"><strong>警察拠点 (右角: D)</strong>: 警察のスタート地点・装備補給所。</div>
                     </div>
                     <div class="guide-item">
-                        <div class="guide-dot" style="background:#f59e0b;"></div>
-                        <div class="guide-text"><strong>角B / F (上下左)</strong>: 泥棒猫スタート & 運送班(ゴール)出現候補</div>
+                        <div class="guide-square" style="background:#4a1d24; border:1px solid #ef4444;"></div>
+                        <div class="guide-text"><strong>牢屋 (警察拠点から3マス左)</strong>: 逮捕された泥棒が送られる場所。</div>
                     </div>
                     <div class="guide-item">
-                        <div class="guide-dot" style="background:#3b82f6;"></div>
-                        <div class="guide-text"><strong>角C / E (上下右)</strong>: 研究所(お宝) & 発電所 (ランダム配置)</div>
+                        <div class="guide-square" style="background:#1e3a8a; border:1px solid #60a5fa;"></div>
+                        <div class="guide-text"><strong>研究所 (角C/Eランダム)</strong>: お宝(重さ5)が保管されている施設。</div>
                     </div>
                     <div class="guide-item">
-                        <div class="guide-dot" style="background:#a855f7;"></div>
-                        <div class="guide-text"><strong>角D (右)</strong>: 警察拠点 & 6角形牢屋 (警察2名・警察犬1匹スタート)</div>
+                        <div class="guide-square" style="background:#854d0e; border:1px solid #f59e0b;"></div>
+                        <div class="guide-text"><strong>発電所 (角C/Eランダム)</strong>: 侵入で5ターンカメラ停止＆牢屋緊急解放。</div>
                     </div>
                     <div class="guide-item">
-                        <div class="guide-dot" style="background:#dc2626;"></div>
-                        <div class="guide-text"><strong>📷 監視カメラ (10個)</strong>: 右側3角(C,D,E)周辺9個 + 牢屋横1個</div>
+                        <div class="guide-square" style="background:#064e3b; border:1px solid #10b981;"></div>
+                        <div class="guide-text"><strong>運送班 (角B/F)</strong>: お宝奪取後にどちらかがゴールとして有効化。</div>
                     </div>
                 </div>
             </div>
@@ -111,7 +111,7 @@
             <div class="card" style="display:flex; flex-direction:column;">
                 <div class="card-title">リアルタイム・ゲームログ</div>
                 <div id="event-log">
-                    <div class="log-entry"><span class="log-time">[00:00]</span> ゲーム開始！ 正規6角形マップ配置を完了しました。</div>
+                    <div class="log-entry"><span class="log-time">[00:00]</span> ゲーム開始！ 泥棒3名 vs 警察2名(＋犬1匹)</div>
                 </div>
             </div>
         </div>
