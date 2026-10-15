@@ -9,9 +9,10 @@
             --bg-color: #1a1e29;
             --panel-bg: #252b3b;
             --accent-blue: #3b82f6;
-            --accent-green: #10b981;
             --accent-red: #ef4444;
+            --accent-green: #10b981;
             --accent-yellow: #f59e0b;
+            --accent-purple: #8b5cf6;
             --text-main: #f3f4f6;
             --text-sub: #9ca3af;
         }
@@ -24,7 +25,7 @@
         }
 
         body {
-            font-family: 'Segoe UI', 'Hiragino Sans', sans-serif;
+            font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
             background-color: var(--bg-color);
             color: var(--text-main);
             display: flex;
@@ -54,13 +55,13 @@
         }
 
         #sidebar {
-            width: 380px;
+            width: 400px;
             background: var(--panel-bg);
             border-left: 2px solid #333c4d;
             display: flex;
             flex-direction: column;
             padding: 16px;
-            gap: 16px;
+            gap: 14px;
             overflow-y: auto;
         }
 
@@ -92,10 +93,10 @@
         }
 
         .phase-indicator {
-            font-size: 1.1em;
+            font-size: 1.05em;
             font-weight: bold;
             text-align: center;
-            padding: 10px;
+            padding: 8px;
             border-radius: 6px;
             background: #2b3345;
             color: #60a5fa;
@@ -117,12 +118,12 @@
 
         .info-label {
             color: var(--text-sub);
-            font-size: 0.8em;
+            font-size: 0.78em;
         }
 
         .info-val {
             font-weight: bold;
-            font-size: 1.05em;
+            font-size: 1.02em;
         }
 
         .btn-group {
@@ -162,15 +163,57 @@
         button.btn-danger { background: var(--accent-red); }
         button.btn-warning { background: var(--accent-yellow); color: #111; }
 
+        /* ガイド・解説セクション */
+        .guide-section {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 0.8em;
+        }
+
+        .guide-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            background: #171c26;
+            padding: 6px 8px;
+            border-radius: 4px;
+            line-height: 1.3;
+        }
+
+        .guide-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .guide-square {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .guide-text {
+            color: #d1d5db;
+        }
+
+        .guide-text strong {
+            color: #ffffff;
+        }
+
         #event-log {
-            flex: 1;
-            min-height: 180px;
+            min-height: 140px;
+            max-height: 180px;
             background: #12151e;
             border: 1px solid #2a3142;
             border-radius: 6px;
             padding: 8px;
             font-family: monospace;
-            font-size: 0.8em;
+            font-size: 0.78em;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
@@ -185,9 +228,9 @@
 
         .log-time { color: #6b7280; }
         .log-police { color: #60a5fa; }
-        .log-slime { color: #34d399; }
+        .log-slime { color: #f87171; }
         .log-cat { color: #fbbf24; }
-        .log-dog { color: #f87171; }
+        .log-dog { color: #c084fc; }
 
         .inv-list {
             display: flex;
@@ -200,7 +243,7 @@
             background: #283144;
             border: 1px solid #45526c;
             border-radius: 4px;
-            padding: 4px 8px;
+            padding: 3px 6px;
             font-size: 0.75em;
         }
     </style>
@@ -226,12 +269,12 @@
                 <div class="card-title">チーム目的・進捗</div>
                 <div class="unit-info-grid">
                     <div class="info-item">
-                        <div class="info-label">泥棒: お宝運搬</div>
-                        <div class="info-val" id="treasure-score" style="color:#34d399">0 / 2 個</div>
+                        <div class="info-label">泥棒(赤): お宝運搬</div>
+                        <div class="info-val" id="treasure-score" style="color:#ef4444">0 / 2 個</div>
                     </div>
                     <div class="info-item">
-                        <div class="info-label">警察: 泥棒確保</div>
-                        <div class="info-val" id="jail-count" style="color:#60a5fa">0 / 4 名</div>
+                        <div class="info-label">警察(青): 泥棒確保</div>
+                        <div class="info-val" id="jail-count" style="color:#3b82f6">0 / 4 名</div>
                     </div>
                 </div>
             </div>
@@ -269,10 +312,54 @@
                 <button class="btn-danger" id="btn-action-throw">🎯 アイテム足元投擲/パス</button>
             </div>
 
-            <div class="card" style="flex:1; display:flex; flex-direction:column;">
+            <!-- 右側サイドバー：ユニット＆マップ解説カード -->
+            <div class="card">
+                <div class="card-title" style="color:#a7f3d0;">
+                    📖 ユニット＆マップ解説
+                </div>
+                <div class="guide-section">
+                    <div style="font-size: 0.78em; color: #9ca3af; font-weight: bold; margin-top: 2px;">【 ユニット (Units) 】</div>
+                    <div class="guide-item">
+                        <div class="guide-dot" style="background:#3b82f6;"></div>
+                        <div class="guide-text"><strong>警察 (青/▲)</strong>: 泥棒を追跡・逮捕するプレイヤー [1, 4]。接触で収監。</div>
+                    </div>
+                    <div class="guide-item">
+                        <div class="guide-dot" style="background:#ef4444;"></div>
+                        <div class="guide-text"><strong>泥棒スライム (赤/●)</strong>: お宝を運搬するプレイヤー [1, 4]。お宝(重さ5)で移動力1に減算 [会10]。</div>
+                    </div>
+                    <div class="guide-item">
+                        <div class="guide-dot" style="background:#f59e0b;"></div>
+                        <div class="guide-text"><strong>泥棒猫 (黄/●)</strong>: 泥棒を補助するNPC。お宝やアイテムを自律回収する。</div>
+                    </div>
+                    <div class="guide-item">
+                        <div class="guide-dot" style="background:#a855f7; border: 1px solid #fff;"></div>
+                        <div class="guide-text"><strong>警察犬 (紫/●)</strong>: お宝持ち出し警報で出動する高速追跡NPC。</div>
+                    </div>
+
+                    <div style="font-size: 0.78em; color: #9ca3af; font-weight: bold; margin-top: 6px;">【 構造物・施設 (Structures) 】</div>
+                    <div class="guide-item">
+                        <div class="guide-square" style="background:#4a1d24; border:1px solid #ef4444;"></div>
+                        <div class="guide-text"><strong>5角形牢屋 (中央)</strong>: 逮捕された泥棒が収監される場所。鍵で解放。</div>
+                    </div>
+                    <div class="guide-item">
+                        <div class="guide-square" style="background:#1e3a8a; border:1px solid #3b82f6;"></div>
+                        <div class="guide-text"><strong>研究所 (青エリア/角)</strong>: お宝(重さ5)が保管されている施設 [会15]。</div>
+                    </div>
+                    <div class="guide-item">
+                        <div class="guide-square" style="background:#064e3b; border:1px solid #10b981;"></div>
+                        <div class="guide-text"><strong>運送班 (緑エリア/角)</strong>: お宝を持ち込んで勝利となるゴール。</div>
+                    </div>
+                    <div class="guide-item">
+                        <div class="guide-square" style="background:#4c1d95; border:1px solid #8b5cf6;"></div>
+                        <div class="guide-text"><strong>抜け道 (紫エリア/角)</strong>: 泥棒側専用のショートカット通路。</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="display:flex; flex-direction:column;">
                 <div class="card-title">リアルタイム・ゲームログ</div>
                 <div id="event-log">
-                    <div class="log-entry"><span class="log-time">[00:00]</span> ゲーム開始！ 警察2 vs (泥棒4 + 猫2)</div>
+                    <div class="log-entry"><span class="log-time">[00:00]</span> ゲーム開始！ 警察2(青) vs (泥棒4(赤) + 猫2(黄))</div>
                 </div>
             </div>
         </div>
@@ -280,7 +367,7 @@
 
     <script>
         // === HEXAGONAL GRID MATH & ENGINE ===
-        const HEX_RADIUS = 15; // マップ半径：15マス 
+        const HEX_RADIUS = 15; // マップ半径：15マス
         const TILE_SIZE = 16;  // タイル描画ピクセル半径
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -288,7 +375,7 @@
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
 
-        // Cube/Axial 座標変換 
+        // Cube/Axial 座標変換
         function hexToPixel(q, r) {
             const x = TILE_SIZE * (1.5 * q);
             const y = TILE_SIZE * (Math.sqrt(3) * (r + q / 2));
@@ -307,24 +394,24 @@
         let treasuresDelivered = 0;
         let thievesJailed = 0;
 
-        // ユニット構成 (警察2 : 泥棒4 : 猫2 = 計8名) [1, 3]
+        // ユニット構成 (警察2[青] : 泥棒4[赤] : 猫2[黄] = 計8名)
         let units = [
-            // 警察 (青・円錐)
+            // 警察 (青・円錐▲)
             { id: 'P1', name: '警察 1', type: 'POLICE', q: 0, r: 0, baseSpeed: 6, items: [{ name: '電撃銃', weight: 1 }, { name: '台車', weight: 2 }], isJailed: false, color: '#3b82f6', plot: [] },
             { id: 'P2', name: '警察 2', type: 'POLICE', q: 1, r: -1, baseSpeed: 6, items: [{ name: '鍵', weight: 1 }], isJailed: false, color: '#60a5fa', plot: [] },
 
-            // 泥棒スライム (緑・球)
-            { id: 'S1', name: '泥棒 1', type: 'SLIME', q: 15, r: 0, baseSpeed: 6, items: [], isJailed: false, color: '#10b981', plot: [] },
-            { id: 'S2', name: '泥棒 2', type: 'SLIME', q: 0, r: 15, baseSpeed: 6, items: [], isJailed: false, color: '#34d399', plot: [] },
-            { id: 'S3', name: '泥棒 3', type: 'SLIME', q: -15, r: 15, baseSpeed: 6, items: [], isJailed: false, color: '#059669', plot: [] },
-            { id: 'S4', name: '泥棒 4', type: 'SLIME', q: -15, r: 0, baseSpeed: 6, items: [], isJailed: false, color: '#6ee7b7', plot: [] },
+            // 泥棒スライム (赤・球●)
+            { id: 'S1', name: '泥棒 1', type: 'SLIME', q: 15, r: 0, baseSpeed: 6, items: [], isJailed: false, color: '#ef4444', plot: [] },
+            { id: 'S2', name: '泥棒 2', type: 'SLIME', q: 0, r: 15, baseSpeed: 6, items: [], isJailed: false, color: '#f87171', plot: [] },
+            { id: 'S3', name: '泥棒 3', type: 'SLIME', q: -15, r: 15, baseSpeed: 6, items: [], isJailed: false, color: '#dc2626', plot: [] },
+            { id: 'S4', name: '泥棒 4', type: 'SLIME', q: -15, r: 0, baseSpeed: 6, items: [], isJailed: false, color: '#fca5a5', plot: [] },
 
-            // 泥棒猫 (黄・NPC)
+            // 泥棒猫 (黄・NPC●)
             { id: 'C1', name: '泥棒猫 1', type: 'CAT', q: 0, r: -15, baseSpeed: 7, items: [], isJailed: false, color: '#f59e0b', plot: [] },
             { id: 'C2', name: '泥棒猫 2', type: 'CAT', q: 15, r: -15, baseSpeed: 7, items: [], isJailed: false, color: '#fbbf24', plot: [] }
         ];
 
-        let policeDogs = []; // 警報時に追加される警察犬 (赤・NPC)
+        let policeDogs = []; // 警報時に追加される警察犬 (紫/エンジ・NPC)
 
         // フィールド上に配置されたアイテム
         let groundItems = [
@@ -336,7 +423,7 @@
 
         let selectedUnitIndex = 0;
 
-        // 重量ペナルティ計算：初期速度 6 - 所持重量 (お宝で1マスに制限) [1, 3]
+        // 重量ペナルティ計算：初期速度 6 - 所持重量 (お宝で1マスに制限) [4, 会10]
         function getMovableSpeed(unit) {
             let totalWeight = unit.items.reduce((sum, item) => sum + item.weight, 0);
             return Math.max(1, unit.baseSpeed - totalWeight);
@@ -372,7 +459,7 @@
                     let fillColor = '#1a202c';
                     let strokeColor = '#2d3748';
 
-                    // 施設の色分け表示 
+                    // 施設の色分け表示
                     if (q === 0 && r === 0) fillColor = '#4a1d24'; // 5角形牢屋
                     if ((q === 15 && r === 0) || (q === -15 && r === 15)) fillColor = '#1e3a8a'; // 研究所 (お宝)
                     if ((q === 0 && r === -15) || (q === 15 && r === -15)) fillColor = '#064e3b'; // 運送班 (ゴール)
@@ -392,9 +479,9 @@
                     let pix = hexToPixel(p.q, p.r);
                     ctx.lineTo(pix.x, pix.y);
                 });
-                ctx.strokeStyle = '#38bdf8';
+                ctx.strokeStyle = (selUnit.type === 'POLICE') ? '#60a5fa' : '#f87171';
                 ctx.lineWidth = 3;
-                ctx.setLineDash([3]);
+                ctx.setLineDash();
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
@@ -440,9 +527,9 @@
                 const pix = hexToPixel(dog.q, dog.r);
                 ctx.beginPath();
                 ctx.arc(pix.x, pix.y, 6, 0, Math.PI * 2);
-                ctx.fillStyle = '#ef4444';
+                ctx.fillStyle = '#a855f7';
                 ctx.fill();
-                ctx.strokeStyle = '#fff';
+                ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = 2;
                 ctx.stroke();
             });
@@ -517,18 +604,18 @@
             }
         }
 
-        // コマ送り一斉移動の実行ロジック [3]
+        // コマ送り一斉移動の実行ロジック
         function executeMovementPhase() {
             currentPhase = 'MOVING';
             document.getElementById('phase-display').innerText = '2. 一斉コマ送り移動中...';
 
-            // 猫AIの自動プロット [2, 4]
+            // 猫AIの自動プロット
             units.filter(u => u.type === 'CAT').forEach(cat => {
                 if (cat.plot.length === 0) {
-                    let nearestItem = groundItems;
-                    if (nearestItem) {
+                    if (groundItems.length > 0) {
+                        let nearestItem = groundItems[0];
                         let step = getNextStepTowards(cat.q, cat.r, nearestItem.q, nearestItem.r);
-                        if (step) cat.plot.push(step);
+                        if (step && step.length > 0) cat.plot.push(step[0]);
                     }
                 }
             });
@@ -547,7 +634,7 @@
                         u.r = nextPos.r;
                         anyMoved = true;
 
-                        // アイテム自動拾い [3]
+                        // アイテム自動拾い
                         for (let i = groundItems.length - 1; i >= 0; i--) {
                             let item = groundItems[i];
                             if (item.q === u.q && item.r === u.r) {
@@ -555,15 +642,15 @@
                                 logEvent(`${u.name} が ${item.name} (重さ${item.weight}) を取得！`, u.type);
                                 groundItems.splice(i, 1);
 
-                                // お宝持ち出し時に警報発令＆警察犬召喚 [1, 5]
+                                // お宝持ち出し時に警報発令＆警察犬召喚
                                 if (item.name === 'お宝' && policeDogs.length === 0) {
                                     policeDogs.push({ id: 'D1', q: 0, r: 0, speed: 8 });
-                                    logEvent(`🚨 警報発生！監視カメラがお宝持ち出しを検知。警察犬(赤)が出動！`, 'DOG');
+                                    logEvent(`🚨 警報発生！監視カメラがお宝持ち出しを検知。警察犬(紫)が出動！`, 'DOG');
                                 }
                             }
                         }
 
-                        // 警察と泥棒の鉢合わせ接触判定（逮捕＆所持品散乱） [3]
+                        // 警察と泥棒の鉢合わせ接触判定（逮捕＆所持品散乱）
                         units.filter(p => p.type === 'POLICE').forEach(pol => {
                             units.filter(s => s.type === 'SLIME' && !s.isJailed).forEach(sli => {
                                 if (pol.q === sli.q && pol.r === sli.r) {
@@ -581,7 +668,7 @@
                             });
                         });
 
-                        // 泥棒のお宝運送完了判定 [2]
+                        // 泥棒のお宝運送完了判定
                         units.filter(s => (s.type === 'SLIME' || s.type === 'CAT')).forEach(s => {
                             if ((s.q === 0 && s.r === -15) || (s.q === 15 && s.r === -15)) {
                                 let treasureIdx = s.items.findIndex(it => it.name === 'お宝');
@@ -620,7 +707,7 @@
             document.getElementById('phase-display').innerText = '1. 計画フェイズ (Plot Phase)';
             document.getElementById('turn-counter').innerText = `TURN ${gameTurn}`;
 
-            // 勝敗条件判定 
+            // 勝敗条件判定
             if (treasuresDelivered >= 2) {
                 alert('🎉 泥棒陣営の完全勝利！ すべてのお宝を運送班へ届けました！');
             } else if (thievesJailed >= 4) {
