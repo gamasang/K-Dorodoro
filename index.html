@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ケイドロドロ 2D Web Edition (半径10マップ)</title>
+    <title>ケイドロドロ 2D Web Edition</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,7 +15,7 @@
         <div id="sidebar">
             <div class="card">
                 <div class="card-title">
-                    ケイドロドロ 戦況 (半径10・331マス)
+                    ケイドロドロ 戦況 (半径10マス)
                     <span class="status-badge" id="turn-counter">TURN 1</span>
                 </div>
                 <div class="phase-indicator" id="phase-display">
@@ -27,16 +27,12 @@
                 <div class="card-title">チーム目的・進捗</div>
                 <div class="unit-info-grid">
                     <div class="info-item">
-                        <div class="info-label">泥棒(左): お宝運搬</div>
+                        <div class="info-label">泥棒: お宝運搬</div>
                         <div class="info-val" id="treasure-score" style="color:#ef4444">0 / 1 個</div>
                     </div>
                     <div class="info-item">
-                        <div class="info-label">警察(右): 泥棒確保</div>
+                        <div class="info-label">警察: 泥棒確保</div>
                         <div class="info-val" id="jail-count" style="color:#3b82f6">0 / 3 名</div>
-                    </div>
-                    <div class="info-item" style="grid-column: span 2;">
-                        <div class="info-label">発電所ステータス</div>
-                        <div class="info-val" id="power-status" style="color:#10b981">正常稼働中</div>
                     </div>
                 </div>
             </div>
@@ -49,7 +45,7 @@
                 <div class="unit-info-grid">
                     <div class="info-item">
                         <div class="info-label">座標 (Q, R)</div>
-                        <div class="info-val" id="unit-pos">(0, 10)</div>
+                        <div class="info-val" id="unit-pos">(0, 9)</div>
                     </div>
                     <div class="info-item">
                         <div class="info-label">移動可能距離</div>
@@ -57,7 +53,7 @@
                     </div>
                     <div class="info-item" style="grid-column: span 2;">
                         <div class="info-label">プロット済み移動経路</div>
-                        <div class="info-val" id="unit-plot-count">0 / 6 ステップ</div>
+                        <div class="info-val" id="unit-plot-count">0 / 6 ステップ (全マスプロット必須)</div>
                     </div>
                 </div>
                 <div style="margin-top: 8px;">
@@ -69,7 +65,7 @@
             </div>
 
             <div class="card btn-group">
-                <button class="btn-success" id="btn-execute-phase" disabled>▶ 計画完了・一斉移動実行 (全マス指定が必要)</button>
+                <button class="btn-success" id="btn-execute-phase" disabled>▶ 計画完了・一斉移動実行 (あと全マス指定が必要)</button>
                 <button class="btn-warning" id="btn-reset-plot">↺ プロットやり直し</button>
                 <button class="btn-danger" id="btn-action-throw">🎯 アイテム足元投擲/パス</button>
             </div>
@@ -86,28 +82,20 @@
 
             <div class="card">
                 <div class="card-title" style="color:#a7f3d0;">
-                    📖 331マス・マップルール
+                    📖 6角形マップ拠点（A〜F）
                 </div>
                 <div class="guide-section">
-                    <div class="guide-item">
-                        <div class="guide-dot" style="background:#f59e0b;"></div>
-                        <div class="guide-text"><strong>アイテムスポーン</strong>: 5ターンごとに10個、マップ上の空きマスに骨/スプレー出現 (最大50個)。</div>
-                    </div>
-                    <div class="guide-item">
-                        <div class="guide-dot" style="background:#fbbf24;"></div>
-                        <div class="guide-text"><strong>泥棒猫 (NPC)</strong>: アイテムを自動回収し泥棒へ届ける。</div>
-                    </div>
-                    <div class="guide-item">
-                        <div class="guide-dot" style="background:#a855f7;"></div>
-                        <div class="guide-text"><strong>警察犬 (NPC)</strong>: 最寄りの泥棒を追跡・3ターン拘束。骨があると骨に夢中になる。</div>
-                    </div>
+                    <div class="guide-item"><div class="guide-dot" style="background:#ef4444;"></div><div class="guide-text"><strong>角A (左)</strong>: 泥棒拠点 (泥棒3名スタート)</div></div>
+                    <div class="guide-item"><div class="guide-dot" style="background:#fbbf24;"></div><div class="guide-text"><strong>角B / F (上下左)</strong>: 泥棒猫スタート / 動的運送班</div></div>
+                    <div class="guide-item"><div class="guide-dot" style="background:#3b82f6;"></div><div class="guide-text"><strong>角C / E (上下右)</strong>: 研究所(お宝) / 発電所</div></div>
+                    <div class="guide-item"><div class="guide-dot" style="background:#a855f7;"></div><div class="guide-text"><strong>角D (右)</strong>: 警察拠点・牢屋 (警察2名/犬1匹)</div></div>
                 </div>
             </div>
 
             <div class="card" style="display:flex; flex-direction:column;">
                 <div class="card-title">リアルタイム・ゲームログ</div>
                 <div id="event-log">
-                    <div class="log-entry"><span class="log-time">[00:00]</span> ゲーム開始！ 半径10・全331マス</div>
+                    <div class="log-entry"><span class="log-time">[00:00]</span> ゲーム開始！ マップ半径10マス（全331マス）</div>
                 </div>
             </div>
         </div>
