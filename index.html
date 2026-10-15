@@ -9,7 +9,7 @@
 <body>
     <div id="game-container">
         <div id="canvas-wrapper">
-            <canvas id="gameCanvas" width="960" height="750"></canvas>
+            <canvas id="gameCanvas" width="980" height="760"></canvas>
         </div>
 
         <div id="sidebar">
@@ -45,7 +45,7 @@
                 <div class="unit-info-grid">
                     <div class="info-item">
                         <div class="info-label">座標 (Q, R)</div>
-                        <div class="info-val" id="unit-pos">(0, 12)</div>
+                        <div class="info-val" id="unit-pos">(0, 10)</div>
                     </div>
                     <div class="info-item">
                         <div class="info-label">移動可能距離</div>
@@ -59,15 +59,14 @@
                 <div style="margin-top: 8px;">
                     <div class="info-label">所持品 (スロット)</div>
                     <div class="inv-list" id="unit-inventory">
-                        <div class="inv-item">電撃銃 (重さ1)</div>
-                        <div class="inv-item">台車 (重さ2)</div>
+                        <div class="inv-item">空き</div>
                     </div>
                 </div>
             </div>
 
             <div class="card btn-group">
                 <button class="btn-success" id="btn-execute-phase" disabled>▶ 計画完了・一斉移動実行 (全マス指定が必要)</button>
-                <button class="btn-warning" id="btn-reset-plot">↺ プロットやり直し</button>
+                <button class="btn-warning" id="btn-reset-plot">↺ プロットリセット (ユニット再押下でもOK)</button>
                 <button class="btn-danger" id="btn-action-throw">🎯 アイテム足元投擲/パス</button>
             </div>
 
@@ -89,36 +88,36 @@
                     <div style="font-size: 0.78em; color: #9ca3af; font-weight: bold; margin-top: 2px;">【 ユニット (右:警察 / 左:泥棒) 】</div>
                     <div class="guide-item">
                         <div class="guide-dot" style="background:#3b82f6;"></div>
-                        <div class="guide-text"><strong>警察 (右側/青/▲)</strong>: 右側からスタート。泥棒を追跡・逮捕し右側牢屋へ収監。</div>
+                        <div class="guide-text"><strong>警察 (右側拠点/青/▲)</strong>: 警察拠点(牢屋)からスタート。泥棒を追跡・逮捕。</div>
                     </div>
                     <div class="guide-item">
                         <div class="guide-dot" style="background:#ef4444;"></div>
-                        <div class="guide-text"><strong>泥棒スライム (左側/赤/●)</strong>: 左側からスタート。お宝(重さ5)所持で移動力1に減算。</div>
+                        <div class="guide-text"><strong>泥棒スライム (左側/赤/●)</strong>: 研究所・アジトからスタート。お宝(重さ5)で移動力1に。</div>
                     </div>
                     <div class="guide-item">
                         <div class="guide-dot" style="background:#f59e0b;"></div>
-                        <div class="guide-text"><strong>泥棒猫 (左側/黄/●)</strong>: 泥棒を補助するNPC。お宝やアイテムを自律回収する。</div>
+                        <div class="guide-text"><strong>泥棒猫 (左側/黄/●)</strong>: 泥棒補助NPC。お宝やアイテムを自動回収。</div>
                     </div>
                     <div class="guide-item">
                         <div class="guide-dot" style="background:#a855f7; border: 1px solid #fff;"></div>
-                        <div class="guide-text"><strong>警察犬 (右側牢屋発/紫/●)</strong>: お宝持ち出し警報で右側拠点から出動。</div>
+                        <div class="guide-text"><strong>警察犬 (右側牢屋発/紫/●)</strong>: お宝持ち出し警報で警察拠点から出動。</div>
                     </div>
 
-                    <div style="font-size: 0.78em; color: #9ca3af; font-weight: bold; margin-top: 6px;">【 構造物・施設 (横向き) 】</div>
+                    <div style="font-size: 0.78em; color: #9ca3af; font-weight: bold; margin-top: 6px;">【 構造物・施設 (建物の外側に名称表示) 】</div>
                     <div class="guide-item">
-                        <div class="guide-square" style="background:#991b1b; border:1px solid #ef4444;"></div>
-                        <div class="guide-text"><strong>5角形牢屋 (右側拠点)</strong>: 逮捕された泥棒が収監される場所。鍵で解放。</div>
+                        <div class="guide-square" style="background:#4a1d24; border:1px solid #ef4444;"></div>
+                        <div class="guide-text"><strong>5角形牢屋 / 警察拠点 (右側)</strong>: 警察のスタート地点＆泥棒収監所。</div>
                     </div>
                     <div class="guide-item">
-                        <div class="guide-square" style="background:#1e40af; border:1px solid #60a5fa;"></div>
+                        <div class="guide-square" style="background:#1e3a8a; border:1px solid #3b82f6;"></div>
                         <div class="guide-text"><strong>研究所 (左側エリア)</strong>: お宝(重さ5)が保管されている施設。</div>
                     </div>
                     <div class="guide-item">
-                        <div class="guide-square" style="background:#065f46; border:1px solid #34d399;"></div>
+                        <div class="guide-square" style="background:#064e3b; border:1px solid #10b981;"></div>
                         <div class="guide-text"><strong>運送班 (左側エリア)</strong>: お宝を持ち込んで勝利となるゴール。</div>
                     </div>
                     <div class="guide-item">
-                        <div class="guide-square" style="background:#5b21b6; border:1px solid #a78bfa;"></div>
+                        <div class="guide-square" style="background:#4c1d95; border:1px solid #8b5cf6;"></div>
                         <div class="guide-text"><strong>抜け道 (上下端エリア)</strong>: 泥棒側専用のショートカット通路。</div>
                     </div>
                 </div>
