@@ -27,49 +27,48 @@ let policeHQStock = {
 };
 
 // --- Corners (A~F Clockwise) ---
-// A: Left (0, -10), B: Top-Left (-10, 0), C: Top-Right (-10, 10)
-// D: Right (0, 10), E: Bottom-Right (10, 0), F: Bottom-Left (10, -10)
+// Pointy-Topped Coordinates (A=Left, B=Top-Left, C=Top-Right, D=Right, E=Bottom-Right, F=Bottom-Left)
 const CORNERS = {
-    A: { q: 0, r: -10, name: '泥棒拠点' },
-    B: { q: -10, r: 0, name: '泥棒猫1 (角B)' },
-    C: { q: -10, r: 10, name: '施設C' },
-    D: { q: 0, r: 10, name: '警察拠点' },
-    E: { q: 10, r: 0, name: '施設E' },
-    F: { q: 10, r: -10, name: '泥棒猫2 (角F)' }
+    A: { q: -10, r: 0, name: '泥棒拠点' },
+    B: { q: 0, r: -10, name: '泥棒猫1 (角B)' },
+    C: { q: 10, r: -10, name: '施設C' },
+    D: { q: 10, r: 0, name: '警察拠点' },
+    E: { q: 0, r: 10, name: '施設E' },
+    F: { q: -10, r: 10, name: '泥棒猫2 (角F)' }
 };
 
 // Randomize C & E for Lab (Treasure) and Power Plant
 let labCornerKey = Math.random() < 0.5 ? 'C' : 'E';
 let powerCornerKey = (labCornerKey === 'C') ? 'E' : 'C';
 
-// Jail is 3 tiles Left of Police HQ (D) -> q=0, r=7
-const JAIL_POS = { q: 0, r: 7 };
+// Jail is exactly 3 tiles Left of Police HQ (D: 10, 0) -> q=7, r=0
+const JAIL_POS = { q: 7, r: 0 };
 
-// Cameras (9 around C,D,E + 1 near Jail)
+// Cameras (9 around C, D, E + 1 near Jail)
 let cameraPositions = [
-    { q: -10, r: 9 }, { q: -9, r: 9 }, { q: -9, r: 10 },
-    { q: 0, r: 9 }, { q: 1, r: 9 }, { q: -1, r: 10 },
-    { q: 10, r: -1 }, { q: 9, r: 0 }, { q: 9, r: 1 },
-    { q: 0, r: 6 } // Near Jail
+    { q: 9, r: -10 }, { q: 9, r: -9 }, { q: 10, r: -9 }, // C
+    { q: 10, r: -1 }, { q: 9, r: 1 }, { q: 9, r: -1 },  // D
+    { q: 0, r: 9 }, { q: 1, r: 9 }, { q: -1, r: 10 },    // E
+    { q: 6, r: 0 }                                       // Near Jail
 ];
 
 // --- Units Definition ---
 let units = [
-    // Slimes (Thieves) starting near Corner A (0, -10)
-    { id: 'S1', name: 'スライム 1', team: 'THIEF', type: 'SLIME', q: 0, r: -9, speed: 4, inv: [], plot: [], jailed: false },
-    { id: 'S2', name: 'スライム 2', team: 'THIEF', type: 'SLIME', q: 1, r: -10, speed: 4, inv: [], plot: [], jailed: false },
-    { id: 'S3', name: 'スライム 3', team: 'THIEF', type: 'SLIME', q: -1, r: -9, speed: 4, inv: [], plot: [], jailed: false },
+    // Slimes (Thieves) starting near Corner A (-10, 0)
+    { id: 'S1', name: 'スライム 1', team: 'THIEF', type: 'SLIME', q: -9, r: 0, speed: 4, inv: [], plot: [], jailed: false },
+    { id: 'S2', name: 'スライム 2', team: 'THIEF', type: 'SLIME', q: -9, r: -1, speed: 4, inv: [], plot: [], jailed: false },
+    { id: 'S3', name: 'スライム 3', team: 'THIEF', type: 'SLIME', q: -10, r: 1, speed: 4, inv: [], plot: [], jailed: false },
 
-    // Cats (Thief NPC) starting at Corner B and F
-    { id: 'C1', name: '泥棒猫 1', team: 'THIEF', type: 'CAT', q: -10, r: 0, speed: 7, inv: [], plot: [], isNPC: true },
-    { id: 'C2', name: '泥棒猫 2', team: 'THIEF', type: 'CAT', q: 10, r: -10, speed: 7, inv: [], plot: [], isNPC: true },
+    // Cats (Thief NPC) starting at Corner B (0, -10) and F (-10, 10)
+    { id: 'C1', name: '泥棒猫 1', team: 'THIEF', type: 'CAT', q: 0, r: -10, speed: 7, inv: [], plot: [], isNPC: true },
+    { id: 'C2', name: '泥棒猫 2', team: 'THIEF', type: 'CAT', q: -10, r: 10, speed: 7, inv: [], plot: [], isNPC: true },
 
-    // Police (Players) starting adjacent to Police HQ (0, 10)
-    { id: 'P1', name: '警察 1', team: 'POLICE', type: 'POLICE', q: -1, r: 10, speed: 5, inv: [], plot: [] },
-    { id: 'P2', name: '警察 2', team: 'POLICE', type: 'POLICE', q: 1, r: 9, speed: 5, inv: [], plot: [] },
+    // Police (Players) starting adjacent to Police HQ (10, 0)
+    { id: 'P1', name: '警察 1', team: 'POLICE', type: 'POLICE', q: 10, r: -1, speed: 5, inv: [], plot: [] },
+    { id: 'P2', name: '警察 2', team: 'POLICE', type: 'POLICE', q: 9, r: 1, speed: 5, inv: [], plot: [] },
 
-    // Police Dog (NPC) starting left of Police HQ (0, 9)
-    { id: 'D1', name: '警察犬 1', team: 'POLICE', type: 'DOG', q: 0, r: 9, speed: 8, inv: [], plot: [], isNPC: true, stunned: 0 }
+    // Police Dog (NPC) starting left of Police HQ (9, 0)
+    { id: 'D1', name: '警察犬 1', team: 'POLICE', type: 'DOG', q: 9, r: 0, speed: 8, inv: [], plot: [], isNPC: true, stunned: 0 }
 ];
 
 // --- Axial Coordinates Utilities ---
@@ -99,14 +98,16 @@ function getNeighbors(hex) {
     return results;
 }
 
-// Convert axial to pixel
+// Convert axial to pixel (Pointy-Topped)
 function hexToPixel(q, r) {
     const x = TILE_SIZE * (Math.sqrt(3) * q + Math.sqrt(3)/2 * r);
     const y = TILE_SIZE * (3/2 * r);
     const canvas = document.getElementById('gameCanvas');
+    const width = canvas ? canvas.width : 900;
+    const height = canvas ? canvas.height : 800;
     return {
-        x: x + canvas.width / 2,
-        y: y + canvas.height / 2
+        x: x + width / 2,
+        y: y + height / 2
     };
 }
 
@@ -115,13 +116,13 @@ function spawnItemsIfNeeded() {
     if ((turn === 1 || (turn - 1) % 3 === 0) && groundItems.length < 30) {
         let spawned = 0;
         let attempts = 0;
-        while (spawned < 10 && groundItems.length < 30 && attempts < 200) {
+        while (spawned < 10 && groundItems.length < 30 && attempts < 300) {
             attempts++;
             let randQ = Math.floor(Math.random() * (MAP_RADIUS * 2 + 1)) - MAP_RADIUS;
             let randR = Math.floor(Math.random() * (MAP_RADIUS * 2 + 1)) - MAP_RADIUS;
             if (!isValidTile(randQ, randR)) continue;
 
-            if (randQ === 0 && randR === 10) continue; // Police HQ
+            if (randQ === 10 && randR === 0) continue; // Police HQ
             if (randQ === JAIL_POS.q && randR === JAIL_POS.r) continue; // Jail
             if (randQ === CORNERS.A.q && randR === CORNERS.A.r) continue; // Thief HQ
 
@@ -205,8 +206,8 @@ function handleTileClick(q, r) {
     let selUnit = units.find(u => u.id === selectedUnitId);
     if (!selUnit || selUnit.isNPC || selUnit.jailed) return;
 
-    if (q === 0 && r === 10) {
-        addLog(`【警告】 警察拠点 (0, 10) は侵入不可エリアです。`);
+    if (q === 10 && r === 0) {
+        addLog(`【警告】 警察拠点 (10, 0) は侵入不可エリアです。`);
         return;
     }
 
@@ -288,7 +289,7 @@ function findPath(start, target, maxSteps) {
         if (path.length - 1 >= maxSteps) continue;
 
         for (let n of getNeighbors(current)) {
-            if (n.q === 0 && n.r === 10) continue;
+            if (n.q === 10 && n.r === 0) continue; // Police HQ impassable
 
             let key = `${n.q},${n.r}`;
             if (!visited.has(key)) {
@@ -413,7 +414,7 @@ function updateUI() {
     let specialCard = document.getElementById('special-action-card');
     let specialBody = document.getElementById('special-card-body');
 
-    let isPoliceNearHQ = selUnit.team === 'POLICE' && hexDistance(selUnit, { q: 0, r: 10 }) === 1;
+    let isPoliceNearHQ = selUnit.team === 'POLICE' && hexDistance(selUnit, { q: 10, r: 0 }) === 1;
 
     if (specialCard && specialBody) {
         if (isPoliceNearHQ) {
@@ -474,15 +475,15 @@ function drawGrid() {
             let pix = hexToPixel(q, r);
             let fillColor = '#161b22';
 
-            if (q === 0 && r === 10) fillColor = '#1e3a8a';
-            else if (q === JAIL_POS.q && r === JAIL_POS.r) fillColor = '#4c1d95';
-            else if (q === CORNERS.A.q && r === CORNERS.A.r) fillColor = '#831843';
-            else if (q === CORNERS[labCornerKey].q && r === CORNERS[labCornerKey].r) fillColor = '#065f46';
-            else if (q === CORNERS[powerCornerKey].q && r === CORNERS[powerCornerKey].r) fillColor = '#854d0e';
+            if (q === 10 && r === 0) fillColor = '#1e3a8a'; // Police HQ
+            else if (q === JAIL_POS.q && r === JAIL_POS.r) fillColor = '#4c1d95'; // Jail
+            else if (q === CORNERS.A.q && r === CORNERS.A.r) fillColor = '#831843'; // Thief HQ
+            else if (q === CORNERS[labCornerKey].q && r === CORNERS[labCornerKey].r) fillColor = '#065f46'; // Lab
+            else if (q === CORNERS[powerCornerKey].q && r === CORNERS[powerCornerKey].r) fillColor = '#854d0e'; // Power Plant
 
             drawHexagon(ctx, pix.x, pix.y, TILE_SIZE, fillColor, '#30363d');
 
-            if (q === 0 && r === 10) drawBuildingTag(ctx, pix.x, pix.y, "警察拠点 (不可侵)", "#3b82f6");
+            if (q === 10 && r === 0) drawBuildingTag(ctx, pix.x, pix.y, "警察拠点 (不可侵)", "#3b82f6");
             if (q === JAIL_POS.q && r === JAIL_POS.r) drawBuildingTag(ctx, pix.x, pix.y, "牢屋", "#a855f7");
             if (q === CORNERS.A.q && r === CORNERS.A.r) drawBuildingTag(ctx, pix.x, pix.y, "泥棒拠点", "#ef4444");
             if (q === CORNERS[labCornerKey].q && r === CORNERS[labCornerKey].r) drawBuildingTag(ctx, pix.x, pix.y, "研究所 (お宝)", "#10b981");
@@ -559,7 +560,7 @@ function drawGrid() {
 function drawHexagon(ctx, x, y, radius, fillColor, strokeColor) {
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
-        const angle = Math.PI / 180 * (60 * i);
+        const angle = Math.PI / 180 * (60 * i + 30); // Pointy-Topped angle (+30 deg)
         const x_i = x + radius * Math.cos(angle);
         const y_i = y + radius * Math.sin(angle);
         if (i === 0) ctx.moveTo(x_i, y_i);
