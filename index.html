@@ -3,119 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ケイドロドロ 2D Web Edition</title>
+    <title>ケイドロドロ (Keidrororo)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
-    <div id="game-container">
-        <div id="canvas-wrapper">
-            <canvas id="gameCanvas" width="960" height="750"></canvas>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased select-none">
+    
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between shadow-lg">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">🚨</span>
+            <h1 class="text-xl font-black tracking-wider text-slate-100">ケイドロドロ <span class="text-xs font-semibold px-2 py-0.5 rounded bg-blue-600 text-white ml-2">対戦盤</span></h1>
+        </div>
+        <div id="turn-display" class="text-sm font-bold text-amber-400 bg-amber-950/60 border border-amber-600/50 px-4 py-1.5 rounded-full">
+            ターン 1 (計画フェイズ)
+        </div>
+    </header>
+
+    <!-- Main Game Container -->
+    <main class="flex-1 flex flex-col lg:flex-row gap-4 p-4 max-w-7xl w-full mx-auto">
+        
+        <!-- Canvas Area -->
+        <div class="flex-1 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center relative shadow-2xl overflow-hidden min-h-[550px]">
+            <canvas id="gameCanvas" width="800" height="750" class="block cursor-pointer"></canvas>
+            
+            <!-- Floating Mini Controls -->
+            <div class="absolute bottom-4 left-4 right-4 flex justify-between items-center bg-slate-950/80 backdrop-blur-md p-3 rounded-xl border border-slate-800 text-xs text-slate-400">
+                <div class="flex gap-4">
+                    <span>🔴 泥棒拠点 (角A)</span>
+                    <span>🔵 警察拠点 (角D)</span>
+                    <span>🟣 牢屋 (3マス左)</span>
+                </div>
+                <div>※ 1マス＝TILE_SIZE 23px (全331マス)</div>
+            </div>
         </div>
 
-        <div id="sidebar">
-            <div class="card">
-                <div class="card-title">
-                    ケイドロドロ 戦況 (正六角形マップ)
-                    <span class="status-badge" id="turn-counter">TURN 1</span>
+        <!-- Sidebar / Control Panel -->
+        <aside class="w-full lg:w-80 flex flex-col gap-4">
+            
+            <!-- Unit Selector Panel -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg flex flex-col gap-3">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">ユニット選択</h2>
+                <div id="unit-badges" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- Active Unit Card -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg flex flex-col gap-3 flex-1">
+                <div class="flex justify-between items-start border-b border-slate-800 pb-3">
+                    <div>
+                        <div id="unit-name" class="text-lg font-bold text-white">泥棒スライム 1</div>
+                        <div class="text-xs text-slate-400 mt-0.5">残移動力: <span id="unit-move-limit" class="font-bold text-amber-400">0 / 6 マス</span></div>
+                    </div>
                 </div>
-                <div class="phase-indicator" id="phase-display">
-                    1. 計画フェイズ (Plot Phase)
+
+                <!-- Inventory -->
+                <div class="flex flex-col gap-1.5">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">所持アイテム</span>
+                    <div id="unit-inventory" class="flex flex-wrap gap-1.5 min-h-[32px] items-center">
+                        <span class="text-slate-500 text-xs">なし</span>
+                    </div>
+                </div>
+
+                <!-- Action Box (NPC notice or Police HQ exchange) -->
+                <div id="unit-action-box" class="mt-2"></div>
+
+                <!-- Control Buttons -->
+                <div class="mt-auto pt-4 flex flex-col gap-2">
+                    <button id="reset-plot-btn" class="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition border border-slate-700">
+                        ↩️ このユニットの計画をリセット
+                    </button>
+                    <button id="execute-turn-btn" class="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-extrabold rounded-xl transition shadow-lg shadow-blue-900/30">
+                        ▶️ ターン実行 (全ユニット同時移動)
+                    </button>
                 </div>
             </div>
 
-            <div class="card">
-                <div class="card-title">チーム目的・進捗</div>
-                <div class="unit-info-grid">
-                    <div class="info-item">
-                        <div class="info-label">泥棒(左・赤): お宝運搬</div>
-                        <div class="info-val" id="treasure-score" style="color:#ef4444">0 / 1 個</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">警察(右・青): 泥棒確保</div>
-                        <div class="info-val" id="jail-count" style="color:#3b82f6">0 / 3 名</div>
-                    </div>
-                </div>
-            </div>
+        </aside>
 
-            <div class="card">
-                <div class="card-title">
-                    選択中のユニット
-                    <span class="status-badge" id="unit-type-badge">泥棒 1</span>
-                </div>
-                <div class="unit-info-grid">
-                    <div class="info-item">
-                        <div class="info-label">座標 (Q, R)</div>
-                        <div class="info-val" id="unit-pos">(0, -9)</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">移動可能距離</div>
-                        <div class="info-val" id="unit-speed">6 マス</div>
-                    </div>
-                    <div class="info-item" style="grid-column: span 2;">
-                        <div class="info-label">プロット済み移動経路</div>
-                        <div class="info-val" id="unit-plot-count">0 / 6 ステップ (全マスプロット必須)</div>
-                    </div>
-                </div>
-                <div style="margin-top: 8px;">
-                    <div class="info-label">所持品 (スロット)</div>
-                    <div class="inv-list" id="unit-inventory">
-                        <div class="inv-item">空き</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card btn-group">
-                <button class="btn-success" id="btn-execute-phase" disabled>▶ 計画完了・一斉移動実行 (全マス指定が必要)</button>
-                <button class="btn-reset-plot" id="btn-reset-plot">↺ プロットやり直し</button>
-                <button class="btn-action-throw" id="btn-action-throw">🎯 アイテム足元投擲/パス</button>
-            </div>
-
-            <div class="card" id="item-action-card" style="display:none; border:1px solid #f59e0b;">
-                <div class="card-title" style="color:#f59e0b;">🎁 最終ステップでのアクション選択</div>
-                <div style="font-size:0.8em; color:#d1d5db; margin-bottom:8px;">
-                    目的地で実行するアクションを選択してください：
-                </div>
-                <select id="item-action-select" style="width:100%; padding:6px; background:#171c26; color:#fff; border:1px solid #333c4d; border-radius:4px; font-size:0.85em;">
-                    <option value="NONE">アイテムを使用しない/置かない</option>
-                </select>
-            </div>
-
-            <div class="card">
-                <div class="card-title" style="color:#a7f3d0;">
-                    📖 施設＆マップ配置解説
-                </div>
-                <div class="guide-section">
-                    <div class="guide-item">
-                        <div class="guide-square" style="background:#1e3a8a; border:1px solid #3b82f6;"></div>
-                        <div class="guide-text"><strong>警察拠点 (右角: D)</strong>: 警察のスタート地点・装備補給所。</div>
-                    </div>
-                    <div class="guide-item">
-                        <div class="guide-square" style="background:#4a1d24; border:1px solid #ef4444;"></div>
-                        <div class="guide-text"><strong>牢屋 (警察拠点から3マス左)</strong>: 逮捕された泥棒が送られる場所。</div>
-                    </div>
-                    <div class="guide-item">
-                        <div class="guide-square" style="background:#1e3a8a; border:1px solid #60a5fa;"></div>
-                        <div class="guide-text"><strong>研究所 (角C/Eランダム)</strong>: お宝(重さ5)が保管されている施設。</div>
-                    </div>
-                    <div class="guide-item">
-                        <div class="guide-square" style="background:#854d0e; border:1px solid #f59e0b;"></div>
-                        <div class="guide-text"><strong>発電所 (角C/Eランダム)</strong>: 侵入で5ターンカメラ停止＆牢屋緊急解放。</div>
-                    </div>
-                    <div class="guide-item">
-                        <div class="guide-square" style="background:#064e3b; border:1px solid #10b981;"></div>
-                        <div class="guide-text"><strong>運送班 (角B/F)</strong>: お宝奪取後にどちらかがゴールとして有効化。</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card" style="display:flex; flex-direction:column;">
-                <div class="card-title">リアルタイム・ゲームログ</div>
-                <div id="event-log">
-                    <div class="log-entry"><span class="log-time">[00:00]</span> ゲーム開始！ 泥棒3名 vs 警察2名(＋犬1匹)</div>
-                </div>
-            </div>
-        </div>
-    </div>
+    </main>
 
     <script src="game.js"></script>
 </body>
