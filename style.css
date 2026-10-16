@@ -1,3 +1,4 @@
+/* Custom Canvas & Grid Styling */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -42,6 +43,8 @@ body {
 canvas {
     display: block;
     background-color: #0e131f;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
 }
 
 #sidebar {
@@ -224,3 +227,16 @@ button:disabled {
 .log-slime { color: #f85149; }
 .log-cat { color: #f2cc60; }
 .log-dog { color: #bc8cff; }
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 3px;
+}
