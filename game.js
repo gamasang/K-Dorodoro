@@ -26,8 +26,9 @@ let policeHQStock = {
     GEAR: 1
 };
 
-// --- Corners (A~F Clockwise) ---
-// Pointy-Topped Coordinates (A=Left, B=Top-Left, C=Top-Right, D=Right, E=Bottom-Right, F=Bottom-Left)
+// --- Corners (A~F Clockwise) - Pointy-Topped Axial Coordinates ---
+// A: Left (-10, 0), B: Top-Left (0, -10), C: Top-Right (10, -10)
+// D: Right (10, 0), E: Bottom-Right (0, 10), F: Bottom-Left (-10, 10)
 const CORNERS = {
     A: { q: -10, r: 0, name: '泥棒拠点' },
     B: { q: 0, r: -10, name: '泥棒猫1 (角B)' },
@@ -41,25 +42,30 @@ const CORNERS = {
 let labCornerKey = Math.random() < 0.5 ? 'C' : 'E';
 let powerCornerKey = (labCornerKey === 'C') ? 'E' : 'C';
 
-// Jail is exactly 3 tiles Left of Police HQ (D: 10, 0) -> q=7, r=0
+// Jail is 3 tiles Left of Police HQ (D: 10, 0) -> q=7, r=0
 const JAIL_POS = { q: 7, r: 0 };
 
-// Cameras (9 around C, D, E + 1 near Jail)
+// Cameras (3 around Corner C, 3 around Corner D, 3 around Corner E + 1 near Jail = 10 total)
+// Carefully placed so they don't overlap unit spawn locations or HQ structures
 let cameraPositions = [
-    { q: 9, r: -10 }, { q: 9, r: -9 }, { q: 10, r: -9 }, // C
-    { q: 10, r: -1 }, { q: 9, r: 1 }, { q: 9, r: -1 },  // D
-    { q: 0, r: 9 }, { q: 1, r: 9 }, { q: -1, r: 10 },    // E
-    { q: 6, r: 0 }                                       // Near Jail
+    // Around Corner C (10, -10)
+    { q: 9, r: -10 }, { q: 10, r: -9 }, { q: 9, r: -9 },
+    // Around Corner D / Police HQ (10, 0) - excluding Dog spawn (9, 0) and Police spawns (10, -1), (9, 1)
+    { q: 8, r: 1 }, { q: 9, r: -1 }, { q: 8, r: 0 },
+    // Around Corner E (0, 10)
+    { q: 0, r: 9 }, { q: 1, r: 9 }, { q: -1, r: 10 },
+    // 1 Camera near Jail (7, 0) - placed at (7, -1)
+    { q: 7, r: -1 }
 ];
 
 // --- Units Definition ---
 let units = [
-    // Slimes (Thieves) starting near Corner A (-10, 0)
+    // Slimes (Thieves) starting adjacent to Corner A (-10, 0)
     { id: 'S1', name: 'スライム 1', team: 'THIEF', type: 'SLIME', q: -9, r: 0, speed: 4, inv: [], plot: [], jailed: false },
-    { id: 'S2', name: 'スライム 2', team: 'THIEF', type: 'SLIME', q: -9, r: -1, speed: 4, inv: [], plot: [], jailed: false },
-    { id: 'S3', name: 'スライム 3', team: 'THIEF', type: 'SLIME', q: -10, r: 1, speed: 4, inv: [], plot: [], jailed: false },
+    { id: 'S2', name: 'スライム 2', team: 'THIEF', type: 'SLIME', q: -10, r: 1, speed: 4, inv: [], plot: [], jailed: false },
+    { id: 'S3', name: 'スライム 3', team: 'THIEF', type: 'SLIME', q: -9, r: -1, speed: 4, inv: [], plot: [], jailed: false },
 
-    // Cats (Thief NPC) starting at Corner B (0, -10) and F (-10, 10)
+    // Cats (Thief NPC) starting at Corner B and F
     { id: 'C1', name: '泥棒猫 1', team: 'THIEF', type: 'CAT', q: 0, r: -10, speed: 7, inv: [], plot: [], isNPC: true },
     { id: 'C2', name: '泥棒猫 2', team: 'THIEF', type: 'CAT', q: -10, r: 10, speed: 7, inv: [], plot: [], isNPC: true },
 
@@ -98,16 +104,14 @@ function getNeighbors(hex) {
     return results;
 }
 
-// Convert axial to pixel (Pointy-Topped)
+// Pointy-Topped Axial to Pixel
 function hexToPixel(q, r) {
     const x = TILE_SIZE * (Math.sqrt(3) * q + Math.sqrt(3)/2 * r);
     const y = TILE_SIZE * (3/2 * r);
     const canvas = document.getElementById('gameCanvas');
-    const width = canvas ? canvas.width : 900;
-    const height = canvas ? canvas.height : 800;
     return {
-        x: x + width / 2,
-        y: y + height / 2
+        x: x + canvas.width / 2,
+        y: y + canvas.height / 2
     };
 }
 
@@ -116,7 +120,7 @@ function spawnItemsIfNeeded() {
     if ((turn === 1 || (turn - 1) % 3 === 0) && groundItems.length < 30) {
         let spawned = 0;
         let attempts = 0;
-        while (spawned < 10 && groundItems.length < 30 && attempts < 300) {
+        while (spawned < 10 && groundItems.length < 30 && attempts < 200) {
             attempts++;
             let randQ = Math.floor(Math.random() * (MAP_RADIUS * 2 + 1)) - MAP_RADIUS;
             let randR = Math.floor(Math.random() * (MAP_RADIUS * 2 + 1)) - MAP_RADIUS;
@@ -148,7 +152,7 @@ function initGame() {
     drawGrid();
 }
 
-// Canvas Input
+// --- Canvas Input & Direct Destination Plotting ---
 function setupCanvasInput() {
     const canvas = document.getElementById('gameCanvas');
     if (!canvas) return;
@@ -211,32 +215,75 @@ function handleTileClick(q, r) {
         return;
     }
 
-    let currentPos = selUnit.plot.length > 0 ? selUnit.plot[selUnit.plot.length - 1] : { q: selUnit.q, r: selUnit.r };
-    let dist = hexDistance(currentPos, { q, r });
+    // Check effective speed
+    let effectiveSpeed = selUnit.speed;
+    if (selUnit.inv.includes('TREASURE')) effectiveSpeed = 1;
 
-    if (dist === 1) {
-        let effectiveSpeed = selUnit.speed;
-        if (selUnit.inv.includes('TREASURE')) effectiveSpeed = 1;
+    let startPos = { q: selUnit.q, r: selUnit.r };
 
-        if (selUnit.plot.length >= effectiveSpeed) {
-            addLog(`【警告】 ${selUnit.name} の今ターンの移動上限（${effectiveSpeed}マス）に達しています。`);
-            return;
-        }
-
-        let willLandHere = units.some(u => u.team === selUnit.team && u.id !== selUnit.id && (
-            (u.plot.length > 0 && u.plot[u.plot.length - 1].q === q && u.plot[u.plot.length - 1].r === r) ||
-            (u.plot.length === 0 && u.q === q && u.r === r)
-        ));
-
-        if (willLandHere) {
-            addLog(`【警告】 味方ユニットと同じマスを最終目的地にすることはできません。`);
-            return;
-        }
-
-        selUnit.plot.push({ q, r });
+    // If user clicked current unit location or reset requested
+    if (q === startPos.q && r === startPos.r) {
+        selUnit.plot = [];
         updateUI();
         drawGrid();
+        return;
     }
+
+    // Check destination collision with teammates
+    let willLandHere = units.some(u => u.team === selUnit.team && u.id !== selUnit.id && (
+        (u.plot.length > 0 && u.plot[u.plot.length - 1].q === q && u.plot[u.plot.length - 1].r === r) ||
+        (u.plot.length === 0 && u.q === q && u.r === r)
+    ));
+
+    if (willLandHere) {
+        addLog(`【警告】 味方ユニットと同じマスを最終目的地にすることはできません。`);
+        return;
+    }
+
+    // Direct Destination Plotting: Find shortest path from current position to clicked target
+    let path = findPath(startPos, { q, r }, effectiveSpeed);
+
+    if (path.length > 0) {
+        selUnit.plot = path;
+        addLog(`[${selUnit.name}] 目的地 (${q}, ${r}) への移動ルート（${path.length}マス）を設定しました。`);
+        updateUI();
+        drawGrid();
+    } else {
+        let dist = hexDistance(startPos, { q, r });
+        if (dist > effectiveSpeed) {
+            addLog(`【提示】 目的地が遠すぎます（移動可能距離: ${effectiveSpeed}マス / 距離: ${dist}マス）。`);
+        } else {
+            addLog(`【提示】 そこへ到達可能なルートが見つかりませんでした。`);
+        }
+    }
+}
+
+// --- Pathfinding Helper (BFS) ---
+function findPath(start, target, maxSteps) {
+    let queue = [[{ q: start.q, r: start.r }]];
+    let visited = new Set([`${start.q},${start.r}`]);
+
+    while (queue.length > 0) {
+        let path = queue.shift();
+        let current = path[path.length - 1];
+
+        if (current.q === target.q && current.r === target.r) {
+            return path.slice(1);
+        }
+
+        if (path.length - 1 >= maxSteps) continue;
+
+        for (let n of getNeighbors(current)) {
+            if (n.q === 10 && n.r === 0) continue; // Police HQ is impassable
+
+            let key = `${n.q},${n.r}`;
+            if (!visited.has(key)) {
+                visited.add(key);
+                queue.push([...path, n]);
+            }
+        }
+    }
+    return [];
 }
 
 // --- NPC AI Logic ---
@@ -272,33 +319,6 @@ function planNPCTurns() {
             }
         }
     });
-}
-
-function findPath(start, target, maxSteps) {
-    let queue = [[{ q: start.q, r: start.r }]];
-    let visited = new Set([`${start.q},${start.r}`]);
-
-    while (queue.length > 0) {
-        let path = queue.shift();
-        let current = path[path.length - 1];
-
-        if (current.q === target.q && current.r === target.r) {
-            return path.slice(1, maxSteps + 1);
-        }
-
-        if (path.length - 1 >= maxSteps) continue;
-
-        for (let n of getNeighbors(current)) {
-            if (n.q === 10 && n.r === 0) continue; // Police HQ impassable
-
-            let key = `${n.q},${n.r}`;
-            if (!visited.has(key)) {
-                visited.add(key);
-                queue.push([...path, n]);
-            }
-        }
-    }
-    return [];
 }
 
 // --- Phase Execution ---
@@ -468,6 +488,10 @@ function drawGrid() {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    let selUnit = units.find(u => u.id === selectedUnitId);
+    let effectiveSpeed = selUnit ? selUnit.speed : 0;
+    if (selUnit && selUnit.inv.includes('TREASURE')) effectiveSpeed = 1;
+
     for (let q = -MAP_RADIUS; q <= MAP_RADIUS; q++) {
         let r1 = Math.max(-MAP_RADIUS, -q - MAP_RADIUS);
         let r2 = Math.min(MAP_RADIUS, -q + MAP_RADIUS);
@@ -475,11 +499,19 @@ function drawGrid() {
             let pix = hexToPixel(q, r);
             let fillColor = '#161b22';
 
+            // Special Structure Colors
             if (q === 10 && r === 0) fillColor = '#1e3a8a'; // Police HQ
             else if (q === JAIL_POS.q && r === JAIL_POS.r) fillColor = '#4c1d95'; // Jail
             else if (q === CORNERS.A.q && r === CORNERS.A.r) fillColor = '#831843'; // Thief HQ
             else if (q === CORNERS[labCornerKey].q && r === CORNERS[labCornerKey].r) fillColor = '#065f46'; // Lab
             else if (q === CORNERS[powerCornerKey].q && r === CORNERS[powerCornerKey].r) fillColor = '#854d0e'; // Power Plant
+            else if (selUnit && !selUnit.isNPC && !selUnit.jailed) {
+                // Highlight reachable tiles for selected player unit
+                let dist = hexDistance({ q: selUnit.q, r: selUnit.r }, { q, r });
+                if (dist > 0 && dist <= effectiveSpeed) {
+                    fillColor = selUnit.team === 'POLICE' ? '#1e293b' : '#311b2b';
+                }
+            }
 
             drawHexagon(ctx, pix.x, pix.y, TILE_SIZE, fillColor, '#30363d');
 
@@ -491,6 +523,7 @@ function drawGrid() {
         }
     }
 
+    // Draw Cameras
     cameraPositions.forEach(cam => {
         let pix = hexToPixel(cam.q, cam.r);
         ctx.fillStyle = powerOutageTurns > 0 ? '#6b7280' : '#ef4444';
@@ -502,6 +535,7 @@ function drawGrid() {
         ctx.strokeRect(pix.x - 1, pix.y - 6, 2, 8);
     });
 
+    // Draw Floor Items
     groundItems.forEach(item => {
         let pix = hexToPixel(item.q, item.r);
         ctx.fillStyle = item.type === 'BONE' ? '#fde047' : '#c084fc';
@@ -514,6 +548,7 @@ function drawGrid() {
         ctx.fillText(item.type === 'BONE' ? '骨' : '煙', pix.x, pix.y + 3);
     });
 
+    // Draw Unit Plot Lines
     units.forEach(u => {
         if (u.plot.length > 0) {
             ctx.beginPath();
@@ -531,6 +566,7 @@ function drawGrid() {
         }
     });
 
+    // Draw Units
     units.forEach(u => {
         let pix = hexToPixel(u.q, u.r);
         let color = '#3b82f6';
@@ -560,7 +596,7 @@ function drawGrid() {
 function drawHexagon(ctx, x, y, radius, fillColor, strokeColor) {
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
-        const angle = Math.PI / 180 * (60 * i + 30); // Pointy-Topped angle (+30 deg)
+        const angle = Math.PI / 180 * (60 * i + 30); // Pointy-Topped
         const x_i = x + radius * Math.cos(angle);
         const y_i = y + radius * Math.sin(angle);
         if (i === 0) ctx.moveTo(x_i, y_i);
