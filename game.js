@@ -1,643 +1,769 @@
-// === KEIDRORORO ENGINE (RADIUS 10 MAP = 331 TILES) ===
+// --- Keidrororo Game Engine ---
+
+// Map & Grid Config
+const MAP_RADIUS = 10;
+const TILE_SIZE = 23; 
+
+// Canvas setup
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let originX = canvas.width / 2;
+let originY = canvas.height / 2;
+
+// Map Coordinates Definition
+// Corners A..F
+// A (West / Left): q=0, r=-10 (Thief HQ)
+// B (NW): q=-10, r=0 (Cat 1 / Goal B)
+// C (NE): q=-10, r=10 (Lab or PowerPlant)
+// D (East / Right): q=0, r=10 (Police HQ)
+// E (SE): q=10, r=0 (Lab or PowerPlant)
+// F (SW): q=10, r=-10 (Cat 2 / Goal F)
+
+const CORNER_A = { q: 0, r: -10 };
+const CORNER_B = { q: -10, r: 0 };
+const CORNER_C = { q: -10, r: 10 };
+const CORNER_D = { q: 0, r: 10 }; // Police HQ
+const CORNER_E = { q: 10, r: 0 };
+const CORNER_F = { q: 10, r: -10 };
+
+// Jail position: 3 tiles left of Police HQ (q=0, r=7)
+const JAIL_POS = { q: 0, r: 7 };
+
+// Game State Variables
+let turnNumber = 1;
+let currentPhase = 'PLOT'; // 'PLOT' or 'EXECUTE'
+let selectedUnitIndex = 0;
+let isPowerPlantHacked = false;
+let hackTurnsRemaining = 0;
+let isTreasureStolen = false;
+let activeDeliveryGoalCorner = null; // 'B' or 'F'
+
+// Randomize C & E for Lab and PowerPlant
+let labCorner = Math.random() < 0.5 ? CORNER_C : CORNER_E;
+let powerPlantCorner = (labCorner === CORNER_C) ? CORNER_E : CORNER_C;
+
+// Police HQ Stock
+let policeHqStock = {
+    TAZER: 1,
+    CART: 1,
+    VEST: 1,
+    HELMET: 1,
+    BOOSTER: 1
+};
+
+// Ground Items Map: key "q,r" -> Array of items [{id, name, type, weight}]
+let groundItems = {};
+
+// Security Cameras (10 total)
+let securityCameras = [];
+
+function initCameras() {
+    securityCameras = [];
+    // 3 near Corner C
+    let cNeighbors = getNeighbors(labCorner.q, labCorner.r);
+    for(let i=0; i<Math.min(3, cNeighbors.length); i++) securityCameras.push(cNeighbors[i]);
+    
+    // 3 near Corner D (Police HQ)
+    let dNeighbors = getNeighbors(CORNER_D.q, CORNER_D.r);
+    for(let i=0; i<Math.min(3, dNeighbors.length); i++) securityCameras.push(dNeighbors[i]);
+
+    // 3 near Corner E
+    let eNeighbors = getNeighbors(powerPlantCorner.q, powerPlantCorner.r);
+    for(let i=0; i<Math.min(3, eNeighbors.length); i++) securityCameras.push(eNeighbors[i]);
+
+    // 1 adjacent to Jail
+    let jailNeighbors = getNeighbors(JAIL_POS.q, JAIL_POS.r);
+    if(jailNeighbors.length > 0) securityCameras.push(jailNeighbors[0]);
+}
+
+// Units Array
+// Note: Dog (D1) and Cats (C1, C2) are NPC AI units.
+let units = [
+    {
+        id: 'S1', name: '泥棒スライム 1', type: 'SLIME', team: 'THIEF', isNpc: false,
+        q: 0, r: -9, color: '#ef4444', moveLimit: 6,
+        isJailed: false, inventory: [], plot: [], hasTreasure: false
+    },
+    {
+        id: 'S2', name: '泥棒スライム 2', type: 'SLIME', team: 'THIEF', isNpc: false,
+        q: 1, r: -10, color: '#f87171', moveLimit: 6,
+        isJailed: false, inventory: [], plot: [], hasTreasure: false
+    },
+    {
+        id: 'S3', name: '泥棒スライム 3', type: 'SLIME', team: 'THIEF', isNpc: false,
+        q: -1, r: -9, color: '#fca5a5', moveLimit: 6,
+        isJailed: false, inventory: [], plot: [], hasTreasure: false
+    },
+    {
+        id: 'P1', name: '警察官 1', type: 'POLICE', team: 'POLICE', isNpc: false,
+        q: -1, r: 10, color: '#3b82f6', moveLimit: 6,
+        isJailed: false, inventory: [], plot: []
+    },
+    {
+        id: 'P2', name: '警察官 2', type: 'POLICE', team: 'POLICE', isNpc: false,
+        q: 1, r: 9, color: '#60a5fa', moveLimit: 6,
+        isJailed: false, inventory: [], plot: []
+    },
+    {
+        id: 'D1', name: '警察犬 1', type: 'DOG', team: 'POLICE', isNpc: true,
+        q: 0, r: 9, color: '#93c5fd', moveLimit: 8,
+        isJailed: false, inventory: [], plot: [], stunTurns: 0, target: null
+    },
+    {
+        id: 'C1', name: '泥棒猫 1', type: 'CAT', team: 'THIEF', isNpc: true,
+        q: CORNER_B.q, r: CORNER_B.r, color: '#fbbf24', moveLimit: 7,
+        isJailed: false, inventory: [], plot: []
+    },
+    {
+        id: 'C2', name: '泥棒猫 2', type: 'CAT', team: 'THIEF', isNpc: true,
+        q: CORNER_F.q, r: CORNER_F.r, color: '#f59e0b', moveLimit: 7,
+        isJailed: false, inventory: [], plot: []
+    }
+];
+
+// Helper Functions for Hex Grids
+function hexToPixel(q, r) {
+    let x = originX + TILE_SIZE * (Math.sqrt(3) * q + Math.sqrt(3)/2 * r);
+    let y = originY + TILE_SIZE * (3/2 * r);
+    return { x, y };
+}
+
+function pixelToHex(x, y) {
+    let px = (x - originX) / TILE_SIZE;
+    let py = (y - originY) / TILE_SIZE;
+    let q = (Math.sqrt(3)/3 * px - 1/3 * py);
+    let r = (2/3 * py);
+    return hexRound(q, r);
+}
+
+function hexRound(q, r) {
+    let s = -q - r;
+    let rq = Math.round(q);
+    let rr = Math.round(r);
+    let rs = Math.round(s);
+
+    let qDiff = Math.abs(rq - q);
+    let rDiff = Math.abs(rr - r);
+    let sDiff = Math.abs(rs - s);
+
+    if (qDiff > rDiff && qDiff > sDiff) {
+        rq = -rr - rs;
+    } else if (rDiff > sDiff) {
+        rr = -rq - rs;
+    }
+    return { q: rq, r: rr };
+}
+
+function hexDistance(a, b) {
+    return (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(-a.q - a.r - (-b.q - b.r))) / 2;
+}
+
+function isValidHex(q, r) {
+    let s = -q - r;
+    return Math.abs(q) <= MAP_RADIUS && Math.abs(r) <= MAP_RADIUS && Math.abs(s) <= MAP_RADIUS;
+}
+
+function getNeighbors(q, r) {
+    let dirs = [
+        {q:1, r:0}, {q:1, r:-1}, {q:0, r:-1},
+        {q:-1, r:0}, {q:-1, r:1}, {q:0, r:1}
+    ];
+    let res = [];
+    dirs.forEach(d => {
+        let nq = q + d.q;
+        let nr = r + d.r;
+        if (isValidHex(nq, nr)) res.push({ q: nq, r: nr });
+    });
+    return res;
+}
+
+// Impassable Check
+function isImpassableTile(q, r) {
+    // Police HQ (CORNER_D) is impassable for both teams
+    if (q === CORNER_D.q && r === CORNER_D.r) return true;
+    return false;
+}
+
+// Item Drop Management
+function getGroundItemCount() {
+    let count = 0;
+    Object.keys(groundItems).forEach(key => {
+        count += groundItems[key].length;
+    });
+    return count;
+}
+
+function spawnRandomItems(amount) {
+    let currentTotal = getGroundItemCount();
+    let toSpawn = Math.min(amount, 30 - currentTotal);
+    if (toSpawn <= 0) return;
+
+    let possibleTiles = [];
+    for (let q = -MAP_RADIUS; q <= MAP_RADIUS; q++) {
+        for (let r = -MAP_RADIUS; r <= MAP_RADIUS; r++) {
+            if (isValidHex(q, r) && !isImpassableTile(q, r)) {
+                // Not a building tile
+                if (!(q === CORNER_A.q && r === CORNER_A.r) &&
+                    !(q === labCorner.q && r === labCorner.r) &&
+                    !(q === powerPlantCorner.q && r === powerPlantCorner.r) &&
+                    !(q === JAIL_POS.q && r === JAIL_POS.r)) {
+                    possibleTiles.push({ q, r });
+                }
+            }
+        }
+    }
+
+    // Shuffle and pick
+    possibleTiles.sort(() => Math.random() - 0.5);
+
+    for (let i = 0; i < Math.min(toSpawn, possibleTiles.length); i++) {
+        let tile = possibleTiles[i];
+        let key = `${tile.q},${tile.r}`;
+        if (!groundItems[key]) groundItems[key] = [];
+
+        let isBone = Math.random() < 0.5;
+        let item = isBone ? 
+            { id: 'BONE_' + Date.now() + '_' + i, name: '骨', type: 'BONE', weight: 2 } :
+            { id: 'SMOKE_' + Date.now() + '_' + i, name: 'スプレー缶', type: 'SMOKE', weight: 1 };
+
+        groundItems[key].push(item);
+    }
+}
+
+// Initial Game Setup
 function initGame() {
-    const HEX_RADIUS = 10;   // 半径10マス (全331マス)
-    const TILE_SIZE = 23;    // タイル描画サイズ
+    initCameras();
+    // Drop initial items (Turn 1)
+    spawnRandomItems(10);
+    updateUI();
+    drawGrid();
+}
 
-    const canvas = document.getElementById('gameCanvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+// BFS Pathfinding (respecting impassable tiles)
+function findPathBFS(start, target, maxSteps) {
+    if (start.q === target.q && start.r === target.r) return [];
+    if (isImpassableTile(target.q, target.r)) return [];
 
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
+    let queue = [[start]];
+    let visited = new Set();
+    visited.add(`${start.q},${start.r}`);
 
-    // 横向き6角形 (Pointy-topped) 座標変換
-    function hexToPixel(q, r) {
-        const x = TILE_SIZE * (Math.sqrt(3) * (r + q / 2));
-        const y = TILE_SIZE * (1.5 * q);
-        return { x: centerX + x, y: centerY + y };
-    }
+    let bestPath = [];
 
-    function hexDistance(q1, r1, q2, r2) {
-        const s1 = -q1 - r1;
-        const s2 = -q2 - r2;
-        return Math.max(Math.abs(q1 - q2), Math.abs(r1 - r2), Math.abs(s1 - s2));
-    }
+    while (queue.length > 0) {
+        let path = queue.shift();
+        let curr = path[path.length - 1];
 
-    // ゲーム状態
-    let gameTurn = 1;
-    let currentPhase = 'PLOT';
-    let treasuresDelivered = 0;
-    let thievesJailed = 0;
+        if (curr.q === target.q && curr.r === target.r) {
+            let res = path.slice(1);
+            if (maxSteps && res.length > maxSteps) return res.slice(0, maxSteps);
+            return res;
+        }
 
-    // 発電所ハッキングタイマー (-1 = 通常稼働)
-    let powerHackedTimer = -1;
+        if (path.length - 1 > (maxSteps || 30)) continue;
 
-    // 角C (上右: -10, 10) と 角E (下右: 10, 0) に研究所と発電所をランダム配置
-    let isLabAtC = Math.random() < 0.5;
-    const labPos = isLabAtC ? { q: -10, r: 10 } : { q: 10, r: 0 };
-    const powerPos = isLabAtC ? { q: 10, r: 0 } : { q: -10, r: 10 };
-
-    // ゴール(運送班)は角B(上左:-10,0)か角F(下左:10,-10)のどちらか。お宝入手時に確定！
-    let activeGoalCorner = null; // 'B' or 'F'
-
-    // 警察拠点: 角D (右: q=0, r=10)
-    const policeHQPos = { q: 0, r: 10 };
-    // 牢屋: 警察拠点から3マス左 (q=0, r=7)
-    const jailPos = { q: 0, r: 7 };
-
-    // 泥棒拠点: 角A (左: q=0, r=-10)
-
-    // ユニット構成
-    let units = [
-        // 泥棒スライム 3名 (角A泥棒拠点の隣接マス)
-        { id: 'S1', name: '泥棒 1', type: 'SLIME', q: 0, r: -9, baseSpeed: 6, items: [], isJailed: false, color: '#ef4444', plot: [], endAction: 'NONE' },
-        { id: 'S2', name: '泥棒 2', type: 'SLIME', q: 1, r: -10, baseSpeed: 6, items: [], isJailed: false, color: '#f87171', plot: [], endAction: 'NONE' },
-        { id: 'S3', name: '泥棒 3', type: 'SLIME', q: -1, r: -9, baseSpeed: 6, items: [], isJailed: false, color: '#dc2626', plot: [], endAction: 'NONE' },
-
-        // 警察 2名 (角D警察拠点の上隣と下隣)
-        { id: 'P1', name: '警察 1', type: 'POLICE', q: -1, r: 10, baseSpeed: 6, items: [{ name: '電撃銃', weight: 1 }], isJailed: false, color: '#3b82f6', plot: [], endAction: 'NONE' },
-        { id: 'P2', name: '警察 2', type: 'POLICE', q: 1, r: 9, baseSpeed: 6, items: [{ name: '鍵', weight: 1 }], isJailed: false, color: '#60a5fa', plot: [], endAction: 'NONE' },
-
-        // 泥棒猫 2匹 (角Bと角F)
-        { id: 'C1', name: '泥棒猫 1', type: 'CAT', q: -10, r: 0, baseSpeed: 7, items: [], isJailed: false, color: '#f59e0b', plot: [], endAction: 'NONE' },
-        { id: 'C2', name: '泥棒猫 2', type: 'CAT', q: 10, r: -10, baseSpeed: 7, items: [], isJailed: false, color: '#fbbf24', plot: [], endAction: 'NONE' },
-
-        // 警察犬 1匹 (角D警察拠点の左隣 q=0, r=9 からスタート)
-        { id: 'D1', name: '警察犬 1', type: 'DOG', q: 0, r: 9, baseSpeed: 8, items: [], isJailed: false, color: '#a855f7', plot: [], endAction: 'NONE', stunTurn: 0 }
-    ];
-
-    // フィールド上の落ちているアイテム (初期: 研究所にお宝1個)
-    let groundItems = [
-        { id: 'T1', name: 'お宝', weight: 5, q: labPos.q, r: labPos.r, color: '#ffd700' }
-    ];
-
-    // 監視カメラ 10個 (右側角C, D, Eの周囲各3個 + 牢屋の隣1個)
-    let cameras = [
-        // 角C周辺 (3個)
-        { q: -9, r: 9 }, { q: -10, r: 9 }, { q: -9, r: 10 },
-        // 角D周辺 (3個)
-        { q: 0, r: 9 }, { q: -1, r: 9 }, { q: 1, r: 8 },
-        // 角E周辺 (3個)
-        { q: 9, r: 0 }, { q: 10, r: -1 }, { q: 9, r: 1 },
-        // 牢屋(q=0, r=7)の隣 (1個)
-        { q: 0, r: 6 }
-    ];
-
-    let selectedUnitIndex = 0;
-
-    // 重力/重量ペナルティ計算
-    function getMovableSpeed(unit) {
-        let totalWeight = unit.items.reduce((sum, item) => sum + item.weight, 0);
-        return Math.max(1, unit.baseSpeed - totalWeight);
-    }
-
-    // 5ターンごとのアイテム一括10個スポーン処理
-    function spawnRandomItems() {
-        if (groundItems.length >= 50) return;
-
-        let availableTiles = [];
-        for (let q = -HEX_RADIUS; q <= HEX_RADIUS; q++) {
-            let r1 = Math.max(-HEX_RADIUS, -q - HEX_RADIUS);
-            let r2 = Math.min(HEX_RADIUS, -q + HEX_RADIUS);
-            for (let r = r1; r <= r2; r++) {
-                let hasItem = groundItems.some(it => it.q === q && it.r === r);
-                let hasUnit = units.some(u => u.q === q && u.r === r);
-                if (!hasItem && !hasUnit) {
-                    availableTiles.push({ q, r });
+        let neighbors = getNeighbors(curr.q, curr.r);
+        for (let n of neighbors) {
+            if (isImpassableTile(n.q, n.r)) continue;
+            let key = `${n.q},${n.r}`;
+            if (!visited.has(key)) {
+                visited.add(key);
+                let newPath = [...path, n];
+                queue.push(newPath);
+                if (newPath.length - 1 <= maxSteps) {
+                    bestPath = newPath.slice(1);
                 }
             }
         }
-
-        let spawnCount = Math.min(10, 50 - groundItems.length, availableTiles.length);
-        for (let i = 0; i < spawnCount; i++) {
-            let idx = Math.floor(Math.random() * availableTiles.length);
-            let pos = availableTiles.splice(idx, 1)[0];
-            let itemType = (Math.random() < 0.6) ? '骨' : 'スプレー缶';
-            let itemWeight = (itemType === '骨') ? 2 : 1;
-            let itemColor = (itemType === '骨') ? '#e5e7eb' : '#6366f1';
-
-            groundItems.push({
-                id: 'I_' + Math.random().toString(36).substr(2, 5),
-                name: itemType,
-                weight: itemWeight,
-                q: pos.q,
-                r: pos.r,
-                color: itemColor
-            });
-        }
-        logEvent(`📦 Turn ${gameTurn}: マップのランダムな空きマスに骨・スプレー缶が10個補充された！`, 'CAT');
     }
 
-    function logEvent(msg, type = 'normal') {
-        const logBox = document.getElementById('event-log');
-        if (!logBox) return;
-        const entry = document.createElement('div');
-        entry.className = 'log-entry';
-        let colorClass = '';
-        if (type === 'POLICE') colorClass = 'log-police';
-        if (type === 'SLIME') colorClass = 'log-slime';
-        if (type === 'CAT') colorClass = 'log-cat';
-        if (type === 'DOG') colorClass = 'log-dog';
+    return bestPath;
+}
 
-        entry.innerHTML = `<span class="log-time">[T${gameTurn}]</span> <span class="${colorClass}">${msg}</span>`;
-        logBox.appendChild(entry);
-        logBox.scrollTop = logBox.scrollHeight;
+// Calculate Destination for a Unit
+function getUnitDestination(unit) {
+    if (unit.plot && unit.plot.length > 0) {
+        let last = unit.plot[unit.plot.length - 1];
+        return { q: last.q, r: last.r };
     }
+    return { q: unit.q, r: unit.r };
+}
 
-    // キャンバス描画エンジン
-    function drawGrid() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+// Drawing Logic
+function drawGrid() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // 六角形タイルの描画
-        for (let q = -HEX_RADIUS; q <= HEX_RADIUS; q++) {
-            let r1 = Math.max(-HEX_RADIUS, -q - HEX_RADIUS);
-            let r2 = Math.min(HEX_RADIUS, -q + HEX_RADIUS);
-            for (let r = r1; r <= r2; r++) {
-                const pix = hexToPixel(q, r);
+    // Draw Hex Tiles
+    for (let q = -MAP_RADIUS; q <= MAP_RADIUS; q++) {
+        for (let r = -MAP_RADIUS; r <= MAP_RADIUS; r++) {
+            if (!isValidHex(q, r)) continue;
 
-                let fillColor = '#171e2e';
-                let strokeColor = '#2e3a52';
+            let pix = hexToPixel(q, r);
+            let fillColor = '#1e293b'; // Default dark tile
+            let strokeColor = '#334155';
 
-                // 各構造物の着色表示
-                if (q === policeHQPos.q && r === policeHQPos.r) fillColor = '#1e3a8a'; // 角D: 警察拠点
-                if (q === jailPos.q && r === jailPos.r) fillColor = '#4a1d24'; // 警察拠点から3マス左: 牢屋
-                if (q === 0 && r === -10) fillColor = '#831843'; // 角A: 泥棒拠点
+            // Special Structures Color
+            if (q === CORNER_A.q && r === CORNER_A.r) fillColor = '#450a0a'; // Thief HQ
+            else if (q === CORNER_D.q && r === CORNER_D.r) fillColor = '#1e3a8a'; // Police HQ
+            else if (q === JAIL_POS.q && r === JAIL_POS.r) fillColor = '#581c87'; // Jail
+            else if (q === labCorner.q && r === labCorner.r) fillColor = '#1e1b4b'; // Lab
+            else if (q === powerPlantCorner.q && r === powerPlantCorner.r) fillColor = '#064e3b'; // PowerPlant
+            else if (q === CORNER_B.q && r === CORNER_B.r) fillColor = (activeDeliveryGoalCorner === 'B') ? '#047857' : '#312e81';
+            else if (q === CORNER_F.q && r === CORNER_F.r) fillColor = (activeDeliveryGoalCorner === 'F') ? '#047857' : '#312e81';
 
-                if (q === labPos.q && r === labPos.r) fillColor = '#1e3a8a'; // 研究所
-                if (q === powerPos.q && r === powerPos.r) fillColor = '#854d0e'; // 発電所
+            drawHexagon(pix.x, pix.y, TILE_SIZE - 1, fillColor, strokeColor);
 
-                if ((q === -10 && r === 0) || (q === 10 && r === -10)) {
-                    fillColor = (activeGoalCorner !== null) ? '#064e3b' : '#1f2937'; // 運送班
-                }
-
-                drawHexagon(pix.x, pix.y, TILE_SIZE - 1, fillColor, strokeColor);
-
-                // 建造物ネームタグの表示
-                if (q === policeHQPos.q && r === policeHQPos.r) {
-                    drawBuildingLabel(pix.x, pix.y, "警察拠点", "#3b82f6", "right");
-                }
-                if (q === jailPos.q && r === jailPos.r) {
-                    drawBuildingLabel(pix.x, pix.y, "牢屋", "#ef4444", "top");
-                }
-                if (q === 0 && r === -10) {
-                    drawBuildingLabel(pix.x, pix.y, "泥棒拠点", "#f43f5e", "left");
-                }
-                if (q === labPos.q && r === labPos.r) {
-                    drawBuildingLabel(pix.x, pix.y, "研究所(お宝)", "#60a5fa", "top");
-                }
-                if (q === powerPos.q && r === powerPos.r) {
-                    drawBuildingLabel(pix.x, pix.y, "発電所", "#f59e0b", "bottom");
-                }
-                if (q === -10 && r === 0) {
-                    drawBuildingLabel(pix.x, pix.y, activeGoalCorner === 'B' ? "運送班(GOAL!)" : "運送班(B)", "#10b981", "left");
-                }
-                if (q === 10 && r === -10) {
-                    drawBuildingLabel(pix.x, pix.y, activeGoalCorner === 'F' ? "運送班(GOAL!)" : "運送班(F)", "#10b981", "left");
-                }
-            }
-        }
-
-        // 監視カメラの描画 (黒いポールと赤目)
-        cameras.forEach(cam => {
-            const pix = hexToPixel(cam.q, cam.r);
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(pix.x - 2, pix.y - 7, 4, 10);
-            ctx.beginPath();
-            ctx.arc(pix.x, pix.y - 7, 3, 0, Math.PI * 2);
-            ctx.fillStyle = (powerHackedTimer > 0) ? '#6b7280' : '#ef4444';
-            ctx.fill();
-        });
-
-        // 全ユニットのプロット済み移動ラインの描画
-        units.forEach((u, idx) => {
-            if (u.isJailed || !u.plot || u.plot.length === 0) return;
-            let isSelected = (idx === selectedUnitIndex);
-
-            ctx.beginPath();
-            let startPix = hexToPixel(u.q, u.r);
-            ctx.moveTo(startPix.x, startPix.y);
-            u.plot.forEach(p => {
-                let pix = hexToPixel(p.q, p.r);
-                ctx.lineTo(pix.x, pix.y);
-            });
-
-            ctx.strokeStyle = isSelected ? u.color : 'rgba(255,255,255,0.4)';
-            ctx.lineWidth = isSelected ? 3.5 : 2;
-            ctx.setLineDash(isSelected ? [] : [4, 4]);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            u.plot.forEach(p => {
-                let pix = hexToPixel(p.q, p.r);
+            // Draw Ground Items
+            let itemKey = `${q},${r}`;
+            if (groundItems[itemKey] && groundItems[itemKey].length > 0) {
+                let count = groundItems[itemKey].length;
+                let firstItem = groundItems[itemKey][0];
                 ctx.beginPath();
-                ctx.arc(pix.x, pix.y, isSelected ? 4 : 3, 0, Math.PI * 2);
-                ctx.fillStyle = isSelected ? '#ffffff' : u.color;
+                ctx.arc(pix.x, pix.y, 6, 0, Math.PI * 2);
+                ctx.fillStyle = (firstItem.type === 'BONE') ? '#fde047' : '#a855f7';
                 ctx.fill();
-            });
-        });
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.stroke();
 
-        // 地面のアイテム描画
-        groundItems.forEach(item => {
-            const pix = hexToPixel(item.q, item.r);
-            ctx.beginPath();
-            ctx.arc(pix.x, pix.y, item.name === 'お宝' ? 7 : 4, 0, Math.PI * 2);
-            ctx.fillStyle = item.color;
-            ctx.fill();
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-        });
-
-        // ユニットの描画
-        units.forEach((u, idx) => {
-            if (u.isJailed) return;
-            const pix = hexToPixel(u.q, u.r);
-
-            ctx.beginPath();
-            if (u.type === 'POLICE') {
-                ctx.moveTo(pix.x, pix.y - 9);
-                ctx.lineTo(pix.x - 8, pix.y + 7);
-                ctx.lineTo(pix.x + 8, pix.y + 7);
-                ctx.closePath();
-            } else if (u.type === 'DOG') {
-                ctx.arc(pix.x, pix.y, 7, 0, Math.PI * 2);
-            } else {
-                ctx.arc(pix.x, pix.y, 8, 0, Math.PI * 2);
+                if (count > 1) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 9px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(count.toString(), pix.x, pix.y + 3);
+                }
             }
 
-            ctx.fillStyle = u.color;
-            ctx.fill();
-            ctx.strokeStyle = (idx === selectedUnitIndex) ? '#ffffff' : '#000000';
-            ctx.lineWidth = (idx === selectedUnitIndex) ? 3 : 1;
-            ctx.stroke();
-        });
+            // Draw Security Cameras
+            let isCam = securityCameras.some(c => c.q === q && c.r === r);
+            if (isCam) {
+                ctx.fillStyle = isPowerPlantHacked ? '#64748b' : '#ef4444';
+                ctx.beginPath();
+                ctx.arc(pix.x, pix.y - 8, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillRect(pix.x - 1.5, pix.y - 4, 3, 7);
+            }
+        }
     }
 
-    function drawBuildingLabel(x, y, text, color, align) {
-        ctx.font = 'bold 10px sans-serif';
-        const textWidth = ctx.measureText(text).width;
+    // Building Text Labels
+    drawBuildingLabel(hexToPixel(CORNER_A.q, CORNER_A.r), "泥棒拠点", "#f87171", "left");
+    drawBuildingLabel(hexToPixel(CORNER_D.q, CORNER_D.r), "警察拠点", "#60a5fa", "right");
+    drawBuildingLabel(hexToPixel(JAIL_POS.q, JAIL_POS.r), "牢屋", "#c084fc", "top");
+    drawBuildingLabel(hexToPixel(labCorner.q, labCorner.r), "研究所 (お宝)", "#818cf8", "top");
+    drawBuildingLabel(hexToPixel(powerPlantCorner.q, powerPlantCorner.r), isPowerPlantHacked ? "発電所 (停止中)" : "発電所", "#34d399", "bottom");
 
-        let lx = x + 12;
-        let ly = y + 4;
-        if (align === 'left') lx = x - textWidth - 14;
-        if (align === 'top') { lx = x - textWidth / 2; ly = y - 16; }
-        if (align === 'bottom') { lx = x - textWidth / 2; ly = y + 20; }
+    let bLabel = (activeDeliveryGoalCorner === 'B') ? "運送班 (★ゴール)" : "運送班 (候補B)";
+    let fLabel = (activeDeliveryGoalCorner === 'F') ? "運送班 (★ゴール)" : "運送班 (候補F)";
+    drawBuildingLabel(hexToPixel(CORNER_B.q, CORNER_B.r), bLabel, "#fbbf24", "left");
+    drawBuildingLabel(hexToPixel(CORNER_F.q, CORNER_F.r), fLabel, "#fbbf24", "left");
 
-        ctx.fillStyle = 'rgba(13, 17, 23, 0.85)';
-        ctx.fillRect(lx - 3, ly - 10, textWidth + 6, 13);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(lx - 3, ly - 10, textWidth + 6, 13);
+    // Draw Unit Plots (Lines)
+    units.forEach((u, idx) => {
+        if (u.isJailed || !u.plot || u.plot.length === 0) return;
+        let isSelected = (idx === selectedUnitIndex);
 
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(text, lx, ly);
-    }
-
-    function drawHexagon(x, y, radius, fillColor, strokeColor) {
         ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-            let angle = Math.PI / 180 * (60 * i + 30);
-            let x_i = x + radius * Math.cos(angle);
-            let y_i = y + radius * Math.sin(angle);
-            if (i === 0) ctx.moveTo(x_i, y_i);
-            else ctx.lineTo(x_i, y_i);
-        }
-        ctx.closePath();
-        ctx.fillStyle = fillColor;
-        ctx.fill();
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 1;
+        let startPix = hexToPixel(u.q, u.r);
+        ctx.moveTo(startPix.x, startPix.y);
+        u.plot.forEach(p => {
+            let pix = hexToPixel(p.q, p.r);
+            ctx.lineTo(pix.x, pix.y);
+        });
+
+        ctx.strokeStyle = isSelected ? u.color : u.color + '80'; // 50% opacity for inactive
+        ctx.lineWidth = isSelected ? 3.5 : 2;
+        ctx.setLineDash(isSelected ? [] : [4, 4]);
         ctx.stroke();
-    }
+        ctx.setLineDash([]);
 
-    // BFS 最短経路探索アルゴリズム
-    function findShortestPath(startQ, startR, targetQ, targetR, maxSteps) {
-        let queue = [[{ q: startQ, r: startR }]];
-        let visited = new Set();
-        visited.add(`${startQ},${startR}`);
-
-        while (queue.length > 0) {
-            let path = queue.shift();
-            let curr = path[path.length - 1];
-
-            if (curr.q === targetQ && curr.r === targetR) {
-                return path.slice(1, maxSteps + 1);
-            }
-
-            if (path.length - 1 >= maxSteps + 4) continue;
-
-            let neighbors = [
-                { q: curr.q + 1, r: curr.r }, { q: curr.q - 1, r: curr.r },
-                { q: curr.q, r: curr.r + 1 }, { q: curr.q, r: curr.r - 1 },
-                { q: curr.q + 1, r: curr.r - 1 }, { q: curr.q - 1, r: curr.r + 1 }
-            ];
-
-            for (let n of neighbors) {
-                if (Math.abs(n.q) <= HEX_RADIUS && Math.abs(n.r) <= HEX_RADIUS && Math.abs(-n.q - n.r) <= HEX_RADIUS) {
-                    let key = `${n.q},${n.r}`;
-                    if (!visited.has(key)) {
-                        visited.add(key);
-                        queue.push([...path, n]);
-                    }
-                }
-            }
-        }
-        return [];
-    }
-
-    // マウスクリック処理
-    canvas.addEventListener('click', (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        let minDistance = 99999;
-        let targetTile = null;
-
-        for (let q = -HEX_RADIUS; q <= HEX_RADIUS; q++) {
-            let r1 = Math.max(-HEX_RADIUS, -q - HEX_RADIUS);
-            let r2 = Math.min(HEX_RADIUS, -q + HEX_RADIUS);
-            for (let r = r1; r <= r2; r++) {
-                const pix = hexToPixel(q, r);
-                const d = Math.hypot(pix.x - mouseX, pix.y - mouseY);
-                if (d < minDistance && d < TILE_SIZE) {
-                    minDistance = d;
-                    targetTile = { q, r };
-                }
-            }
-        }
-
-        if (targetTile) {
-            handleHexClick(targetTile.q, targetTile.r);
-        }
+        // Waypoints
+        u.plot.forEach(p => {
+            let pix = hexToPixel(p.q, p.r);
+            ctx.beginPath();
+            ctx.arc(pix.x, pix.y, isSelected ? 4 : 3, 0, Math.PI * 2);
+            ctx.fillStyle = isSelected ? '#ffffff' : u.color;
+            ctx.fill();
+        });
     });
 
-    function handleHexClick(q, r) {
-        let selUnit = units[selectedUnitIndex];
+    // Draw Units (Icons)
+    units.forEach((u, idx) => {
+        if (u.isJailed) return;
+        let pix = hexToPixel(u.q, u.r);
+        let isSelected = (idx === selectedUnitIndex);
 
-        // 選択中ユニットそのものをクリックした場合 -> プロット全リセット
-        if (selUnit && q === selUnit.q && r === selUnit.r) {
+        // Highlight ring if selected
+        if (isSelected) {
+            ctx.beginPath();
+            ctx.arc(pix.x, pix.y, 14, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // Body Circle
+        ctx.beginPath();
+        ctx.arc(pix.x, pix.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = u.color;
+        ctx.fill();
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Label / Symbol inside
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        let symbol = u.id;
+        if (u.type === 'SLIME') symbol = 'S' + u.id.replace('S','');
+        else if (u.type === 'POLICE') symbol = 'P' + u.id.replace('P','');
+        else if (u.type === 'DOG') symbol = '犬';
+        else if (u.type === 'CAT') symbol = '猫';
+
+        ctx.fillText(symbol, pix.x, pix.y);
+    });
+}
+
+function drawHexagon(x, y, radius, fillColor, strokeColor) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+        let angle = Math.PI / 180 * (60 * i);
+        let hx = x + radius * Math.cos(angle);
+        let hy = y + radius * Math.sin(angle);
+        if (i === 0) ctx.moveTo(hx, hy);
+        else ctx.lineTo(hx, hy);
+    }
+    ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+}
+
+function drawBuildingLabel(pix, text, color, pos) {
+    ctx.font = 'bold 11px sans-serif';
+    let textWidth = ctx.measureText(text).width;
+    let lx = pix.x;
+    let ly = pix.y;
+
+    if (pos === 'right') lx += 18;
+    else if (pos === 'left') lx -= (textWidth + 18);
+    else if (pos === 'top') ly -= 18;
+    else if (pos === 'bottom') ly += 22;
+
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.fillRect(lx - 4, ly - 9, textWidth + 8, 14);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(lx - 4, ly - 9, textWidth + 8, 14);
+
+    ctx.fillStyle = color;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, lx, ly);
+}
+
+// User Interaction (Click Map)
+canvas.addEventListener('click', (e) => {
+    if (currentPhase !== 'PLOT') return;
+
+    let rect = canvas.getBoundingClientRect();
+    let mouseX = e.clientX - rect.left;
+    let mouseY = e.clientY - rect.top;
+
+    let hex = pixelToHex(mouseX, mouseY);
+    if (!isValidHex(hex.q, hex.r)) return;
+
+    let selUnit = units[selectedUnitIndex];
+
+    // If unit is NPC (Dog/Cat), player CANNOT plot for it
+    if (selUnit.isNpc) return;
+
+    // Check if clicked on an existing unit on map -> Select that unit
+    let clickedUnitIdx = units.findIndex(u => !u.isJailed && u.q === hex.q && u.r === hex.r);
+    if (clickedUnitIdx !== -1) {
+        if (clickedUnitIdx === selectedUnitIndex) {
+            // Re-clicked currently selected unit -> RESET its plot!
             selUnit.plot = [];
             updateUI();
             drawGrid();
             return;
-        }
-
-        let clickedUnitIdx = units.findIndex(u => u.q === q && u.r === r && !u.isJailed);
-        if (clickedUnitIdx !== -1 && currentPhase === 'PLOT') {
+        } else {
+            // Switch selection
             selectedUnitIndex = clickedUnitIdx;
             updateUI();
             drawGrid();
             return;
         }
+    }
 
-        if (!selUnit || currentPhase !== 'PLOT') return;
+    // Can't plot into impassable tiles
+    if (isImpassableTile(hex.q, hex.r)) return;
 
-        let maxMov = getMovableSpeed(selUnit);
+    // Plotting Path Logic
+    let currentPos = (selUnit.plot.length > 0) ? selUnit.plot[selUnit.plot.length - 1] : { q: selUnit.q, r: selUnit.r };
+    
+    // Check if destination collides with another unit of the SAME team
+    let finalDest = hex;
+    let sameTeamUnits = units.filter((u, i) => i !== selectedUnitIndex && u.team === selUnit.team && !u.isJailed);
+    let isCollision = sameTeamUnits.some(other => {
+        let otherDest = getUnitDestination(other);
+        return otherDest.q === finalDest.q && otherDest.r === finalDest.r;
+    });
 
-        let existingIndex = selUnit.plot.findIndex(p => p.q === q && p.r === r);
-        if (existingIndex !== -1) {
-            selUnit.plot = selUnit.plot.slice(0, existingIndex + 1);
+    if (isCollision) {
+        alert("同陣営のユニットと同じマスを最終目的地にすることはできません。");
+        return;
+    }
+
+    let path = findPathBFS(currentPos, hex, selUnit.moveLimit - selUnit.plot.length);
+    if (path.length > 0) {
+        selUnit.plot = [...selUnit.plot, ...path];
+        updateUI();
+        drawGrid();
+    }
+});
+
+// UI Updates & Controls
+function updateUI() {
+    let selUnit = units[selectedUnitIndex];
+
+    // Phase Indicator
+    document.getElementById('turn-display').innerText = `ターン ${turnNumber} (${currentPhase === 'PLOT' ? '計画フェイズ' : '実行フェイズ'})`;
+
+    // Unit Selector Badges
+    let unitListEl = document.getElementById('unit-badges');
+    unitListEl.innerHTML = '';
+    units.forEach((u, i) => {
+        let badge = document.createElement('button');
+        badge.className = `px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+            i === selectedUnitIndex ? 'ring-2 ring-white scale-105 shadow-md' : 'opacity-70 hover:opacity-100'
+        }`;
+        badge.style.backgroundColor = u.color;
+        badge.style.color = '#ffffff';
+
+        let statusText = u.isJailed ? ' [収監]' : (u.isNpc ? ' [AI]' : '');
+        badge.innerText = `${u.name}${statusText}`;
+        badge.onclick = () => {
+            selectedUnitIndex = i;
             updateUI();
             drawGrid();
-            return;
-        }
+        };
+        unitListEl.appendChild(badge);
+    });
 
-        let currentLastPos = (selUnit.plot.length > 0) ? selUnit.plot[selUnit.plot.length - 1] : { q: selUnit.q, r: selUnit.r };
-        let remainingSteps = maxMov - selUnit.plot.length;
+    // Selected Unit Info
+    document.getElementById('unit-name').innerText = selUnit.name + (selUnit.isNpc ? " (自動NPC)" : "");
+    document.getElementById('unit-move-limit').innerText = `${selUnit.plot.length} / ${selUnit.moveLimit} マス`;
 
-        if (remainingSteps > 0) {
-            let autoPath = findShortestPath(currentLastPos.q, currentLastPos.r, q, r, remainingSteps);
-            if (autoPath.length > 0) {
-                selUnit.plot = [...selUnit.plot, ...autoPath];
-                updateUI();
-                drawGrid();
-            }
-        }
+    // Inventory List
+    let invEl = document.getElementById('unit-inventory');
+    if (selUnit.inventory.length === 0) {
+        invEl.innerHTML = '<span class="text-slate-400 text-xs">なし</span>';
+    } else {
+        invEl.innerHTML = selUnit.inventory.map(item => `
+            <span class="px-2 py-0.5 rounded bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-600">
+                ${item.name}
+            </span>
+        `).join(' ');
     }
 
-    // 毎ターンのコマ送り一斉移動実行ロジック
-    function executeMovementPhase() {
-        currentPhase = 'MOVING';
-        document.getElementById('phase-display').innerText = '2. 一斉コマ送り移動中...';
+    // NPC Notice or Police HQ Swap Action
+    let actionBox = document.getElementById('unit-action-box');
+    actionBox.innerHTML = '';
 
-        // 猫・犬の自動プロット補充
-        runAIPlotting();
+    if (selUnit.isNpc) {
+        actionBox.innerHTML = `
+            <div class="p-2.5 rounded-lg bg-amber-950/60 border border-amber-600/40 text-amber-200 text-xs">
+                🤖 <strong>自動思考ユニット:</strong> 警察犬・泥棒猫はフローに従って自動で行動します。プレイヤーによる直接操作はできません。
+            </div>
+        `;
+    } else if (selUnit.type === 'POLICE') {
+        // Check if adjacent to Police HQ (CORNER_D)
+        let isAdjHQ = getNeighbors(selUnit.q, selUnit.r).some(n => n.q === CORNER_D.q && n.r === CORNER_D.r);
+        if (isAdjHQ) {
+            actionBox.innerHTML = `
+                <div class="p-2.5 rounded-lg bg-blue-950/70 border border-blue-500/50 text-blue-200 text-xs flex flex-col gap-2">
+                    <div class="font-bold">🏢 警察拠点に隣接中 (装備の補給・交換)</div>
+                    <div class="text-[11px] text-slate-300">拠点在庫: 電撃銃:${policeHqStock.TAZER} 台車:${policeHqStock.CART} チョッキ:${policeHqStock.VEST} メット:${policeHqStock.HELMET} ギア:${policeHqStock.BOOSTER}</div>
+                    <div class="flex gap-2">
+                        <button onclick="takeItemFromHQ('TAZER')" class="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-xs font-semibold">電撃銃を取る</button>
+                        <button onclick="takeItemFromHQ('CART')" class="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-xs font-semibold">台車を取る</button>
+                    </div>
+                </div>
+            `;
+        }
+    }
+}
 
-        let stepCount = 0;
-        let maxSteps = 9;
+function takeItemFromHQ(type) {
+    let selUnit = units[selectedUnitIndex];
+    if (policeHqStock[type] > 0) {
+        policeHqStock[type]--;
+        let name = type === 'TAZER' ? '電撃銃' : '台車';
+        selUnit.inventory.push({ id: type + '_' + Date.now(), name: name, type: type, weight: 1 });
+        updateUI();
+    } else {
+        alert("警察拠点にそのアイテムの在庫がありません。");
+    }
+}
 
-        let interval = setInterval(() => {
-            stepCount++;
-            let anyMoved = false;
+// Reset Current Unit Plot
+document.getElementById('reset-plot-btn').onclick = () => {
+    let selUnit = units[selectedUnitIndex];
+    if (!selUnit.isNpc) {
+        selUnit.plot = [];
+        updateUI();
+        drawGrid();
+    }
+};
 
-            units.forEach(u => {
-                if (u.plot && u.plot.length > 0) {
-                    let nextPos = u.plot.shift();
-                    u.q = nextPos.q;
-                    u.r = nextPos.r;
-                    anyMoved = true;
+// Execute Turn Phase (Execute plots & Run AI)
+document.getElementById('execute-turn-btn').onclick = () => {
+    if (currentPhase !== 'PLOT') return;
 
-                    // 発電所侵入判定
-                    if (u.q === powerPos.q && u.r === powerPos.r) {
-                        if (u.type === 'SLIME' || u.type === 'CAT') {
-                            powerHackedTimer = 5;
-                            logEvent(`⚡ ${u.name} が発電所をハッキング！ 5ターンの間カメラ停止＆牢屋緊急解放！`, 'SLIME');
-                            units.filter(s => s.isJailed).forEach(s => {
-                                s.isJailed = false;
-                                s.q = jailPos.q; s.r = jailPos.r - 1;
-                            });
-                        } else if (u.type === 'POLICE') {
-                            powerHackedTimer = -1;
-                            logEvent(`🔧 ${u.name} が発電所を復旧させた！ 監視カメラが再起動。`, 'POLICE');
-                        }
+    currentPhase = 'EXECUTE';
+    document.getElementById('execute-turn-btn').disabled = true;
+
+    // Run NPC AI Plots before execution
+    runNpcAI();
+
+    // Execute movements step-by-step
+    let maxSteps = 8; // Max movement speed
+    let stepIndex = 0;
+
+    let stepInterval = setInterval(() => {
+        let anyMoved = false;
+
+        units.forEach(u => {
+            if (!u.isJailed && u.plot && u.plot.length > stepIndex) {
+                let nextStep = u.plot[stepIndex];
+                u.q = nextStep.q;
+                u.r = nextStep.r;
+                anyMoved = true;
+
+                // Pick up ground items
+                let key = `${u.q},${u.r}`;
+                if (groundItems[key] && groundItems[key].length > 0) {
+                    if (u.type === 'CAT' || u.type === 'SLIME') {
+                        let item = groundItems[key].shift();
+                        u.inventory.push(item);
+                        if (groundItems[key].length === 0) delete groundItems[key];
                     }
-
-                    // アイテム拾い判定
-                    for (let i = groundItems.length - 1; i >= 0; i--) {
-                        let item = groundItems[i];
-                        if (item.q === u.q && item.r === u.r) {
-                            u.items.push(item);
-                            logEvent(`${u.name} が ${item.name} を入手！`, u.type);
-                            groundItems.splice(i, 1);
-
-                            if (item.name === 'お宝' && activeGoalCorner === null) {
-                                activeGoalCorner = (Math.random() < 0.5) ? 'B' : 'F';
-                                logEvent(`🚨 警報！お宝が持ち出された！ 泥棒陣営は角${activeGoalCorner}の運送班へ向かえ！`, 'SLIME');
-                            }
-                        }
-                    }
-
-                    // 警察による逮捕判定
-                    units.filter(p => p.type === 'POLICE').forEach(pol => {
-                        units.filter(s => (s.type === 'SLIME' || s.type === 'CAT') && !s.isJailed).forEach(sli => {
-                            if (pol.q === sli.q && pol.r === sli.r) {
-                                sli.isJailed = true;
-                                sli.q = jailPos.q; sli.r = jailPos.r;
-                                if (sli.type === 'SLIME') thievesJailed++;
-                                logEvent(`🚨 ${pol.name} が ${sli.name} を逮捕！ 牢屋へ送られました。`, 'POLICE');
-
-                                sli.items.forEach(itm => {
-                                    itm.q = pol.q; itm.r = pol.r;
-                                    groundItems.push(itm);
-                                });
-                                sli.items = [];
-                            }
-                        });
-                    });
-
-                    // 運送班ゴール判定
-                    units.filter(s => (s.type === 'SLIME' || s.type === 'CAT')).forEach(s => {
-                        let isAtGoal = (activeGoalCorner === 'B' && s.q === -10 && s.r === 0) ||
-                                       (activeGoalCorner === 'F' && s.q === 10 && s.r === -10);
-                        if (isAtGoal) {
-                            let treasureIdx = s.items.findIndex(it => it.name === 'お宝');
-                            if (treasureIdx !== -1) {
-                                s.items.splice(treasureIdx, 1);
-                                treasuresDelivered++;
-                                logEvent(`🎉 ${s.name} がお宝を運送班へ届けた！`, 'SLIME');
-                            }
-                        }
-                    });
                 }
-            });
 
-            drawGrid();
+                // Lab Treasure Steal
+                if (u.q === labCorner.q && u.r === labCorner.r && (u.type === 'SLIME' || u.type === 'CAT')) {
+                    if (!isTreasureStolen) {
+                        isTreasureStolen = true;
+                        u.hasTreasure = true;
+                        activeDeliveryGoalCorner = Math.random() < 0.5 ? 'B' : 'F';
+                        alert(`🚨 【お宝被盗警報】 ${u.name} がお宝を奪いました！運送班ゴールが起動しました！`);
+                    }
+                }
 
-            if (!anyMoved || stepCount >= maxSteps) {
-                clearInterval(interval);
-                finishTurn();
-            }
-        }, 300);
-    }
+                // Delivery Goal Victory Check
+                let goalPos = (activeDeliveryGoalCorner === 'B') ? CORNER_B : CORNER_F;
+                if (activeDeliveryGoalCorner && u.q === goalPos.q && u.r === goalPos.r && u.hasTreasure) {
+                    alert(`🎉 【泥棒陣営 勝利！】 ${u.name} がお宝を運送班へ届けることに成功しました！`);
+                }
 
-    function runAIPlotting() {
-        // 猫のAI: 最寄りのアイテムを収集して泥棒へ届ける
-        units.filter(u => u.type === 'CAT' && !u.isJailed).forEach(cat => {
-            if (!cat.plot || cat.plot.length === 0) {
-                if (groundItems.length > 0) {
-                    let nearest = groundItems[0];
-                    let path = findShortestPath(cat.q, cat.r, nearest.q, nearest.r, cat.baseSpeed);
-                    if (path.length > 0) cat.plot = path;
+                // PowerPlant Hack Check
+                if (u.q === powerPlantCorner.q && u.r === powerPlantCorner.r && (u.type === 'SLIME' || u.type === 'CAT')) {
+                    if (!isPowerPlantHacked) {
+                        isPowerPlantHacked = true;
+                        hackTurnsRemaining = 5;
+                        alert("⚡ 【発電所ハッキング発動】 監視カメラ機能停止！牢屋緊急オープン！");
+                    }
                 }
             }
         });
 
-        // 警察犬のAI: 最寄りの泥棒を追跡
-        units.filter(u => u.type === 'DOG' && !u.isJailed).forEach(dog => {
-            if (!dog.plot || dog.plot.length === 0) {
-                let activeThieves = units.filter(s => s.type === 'SLIME' && !s.isJailed);
-                if (activeThieves.length > 0) {
-                    let target = activeThieves[0];
-                    let path = findShortestPath(dog.q, dog.r, target.q, target.r, dog.baseSpeed);
-                    if (path.length > 0) dog.plot = path;
-                }
-            }
-        });
-    }
-
-    function finishTurn() {
-        gameTurn++;
-        if (powerHackedTimer > 0) {
-            powerHackedTimer--;
-            if (powerHackedTimer === 0) {
-                powerHackedTimer = -1;
-                logEvent(`🔧 発電所の自動ハッキングが解除され、監視カメラが復旧した。`, 'POLICE');
-            }
-        }
-
-        // 5ターンごとのアイテム補充
-        if (gameTurn % 5 === 0) {
-            spawnRandomItems();
-        }
-
-        currentPhase = 'PLOT';
-        document.getElementById('phase-display').innerText = '1. 計画フェイズ (Plot Phase)';
-        document.getElementById('turn-counter').innerText = `TURN ${gameTurn}`;
-
-        if (treasuresDelivered >= 1) {
-            alert('🎉 泥棒陣営の完全勝利！ お宝を運送班へ届けました！');
-        } else if (thievesJailed >= 3) {
-            alert('🚨 警察陣営の完全勝利！ すべての泥棒を逮捕しました！');
-        }
-
-        updateUI();
+        stepIndex++;
         drawGrid();
+
+        if (stepIndex >= maxSteps || !anyMoved) {
+            clearInterval(stepInterval);
+            finishExecutePhase();
+        }
+    }, 250);
+};
+
+function finishExecutePhase() {
+    // Reset plots
+    units.forEach(u => u.plot = []);
+
+    // Turn Increment
+    turnNumber++;
+    currentPhase = 'PLOT';
+    document.getElementById('execute-turn-btn').disabled = false;
+
+    // Item Spawn (Every 3 turns starting from Turn 4, 7, 10...)
+    if ((turnNumber - 1) % 3 === 0) {
+        spawnRandomItems(10);
     }
 
-    function updateUI() {
-        const u = units[selectedUnitIndex];
-        if (!u) return;
-
-        document.getElementById('unit-type-badge').innerText = u.name;
-        document.getElementById('unit-pos').innerText = `(${u.q}, ${u.r})`;
-
-        let maxMov = getMovableSpeed(u);
-        let remaining = maxMov - u.plot.length;
-
-        if (remaining > 0) {
-            document.getElementById('unit-plot-count').innerText = `${u.plot.length} / ${maxMov} ステップ (あと ${remaining} マス選択必須)`;
-            document.getElementById('btn-execute-phase').disabled = true;
-            document.getElementById('btn-execute-phase').innerText = `▶ 計画完了・一斉移動実行 (あと${remaining}マス選択が必要)`;
-            document.getElementById('item-action-card').style.display = 'none';
-        } else {
-            document.getElementById('unit-plot-count').innerText = `${u.plot.length} / ${maxMov} ステップ (準備完了！)`;
-            document.getElementById('btn-execute-phase').disabled = false;
-            document.getElementById('btn-execute-phase').innerText = `▶ 計画完了・一斉移動実行`;
-
-            const itemCard = document.getElementById('item-action-card');
-            const itemSelect = document.getElementById('item-action-select');
-            itemSelect.innerHTML = '<option value="NONE">アイテムを使用しない/置かない</option>';
-
-            u.items.forEach((item, idx) => {
-                itemSelect.innerHTML += `<option value="${idx}">${item.name} を最終マスに置く/使用する</option>`;
-            });
-
-            itemCard.style.display = 'block';
-        }
-
-        document.getElementById('treasure-score').innerText = `${treasuresDelivered} / 1 個`;
-        document.getElementById('jail-count').innerText = `${thievesJailed} / 3 名`;
-
-        const invContainer = document.getElementById('unit-inventory');
-        invContainer.innerHTML = '';
-        if (u.items.length === 0) {
-            invContainer.innerHTML = '<div class="inv-item">空き</div>';
-        } else {
-            u.items.forEach(it => {
-                invContainer.innerHTML += `<div class="inv-item">${it.name} (重さ${it.weight})</div>`;
-            });
+    // PowerPlant Hack Countdown
+    if (isPowerPlantHacked) {
+        hackTurnsRemaining--;
+        if (hackTurnsRemaining <= 0) {
+            isPowerPlantHacked = false;
+            alert("⚡ 発電所が普及し、監視カメラシステムが復旧しました。");
         }
     }
-
-    document.getElementById('btn-execute-phase').addEventListener('click', () => {
-        if (currentPhase === 'PLOT') {
-            executeMovementPhase();
-        }
-    });
-
-    document.getElementById('btn-reset-plot').addEventListener('click', () => {
-        units[selectedUnitIndex].plot = [];
-        updateUI();
-        drawGrid();
-    });
-
-    document.getElementById('btn-action-throw').addEventListener('click', () => {
-        let u = units[selectedUnitIndex];
-        if (u.items.length > 0) {
-            let droppedItem = u.items.pop();
-            droppedItem.q = u.q; droppedItem.r = u.r;
-            groundItems.push(droppedItem);
-            logEvent(`${u.name} が足元に ${droppedItem.name} を置いた/パスした。`, u.type);
-            updateUI();
-            drawGrid();
-        }
-    });
 
     updateUI();
     drawGrid();
 }
 
+// NPC AI Logic (Dog & Cat)
+function runNpcAI() {
+    units.forEach(u => {
+        if (!u.isNpc || u.isJailed) return;
+
+        if (u.type === 'CAT') {
+            // Thief Cat AI:
+            // 1. Find nearest ground item
+            let nearestItemKey = null;
+            let minDist = 999;
+            Object.keys(groundItems).forEach(key => {
+                let [gq, gr] = key.split(',').map(Number);
+                let dist = hexDistance({ q: u.q, r: u.r }, { q: gq, r: gr });
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearestItemKey = { q: gq, r: gr };
+                }
+            });
+
+            if (nearestItemKey && u.inventory.length < 2) {
+                u.plot = findPathBFS({ q: u.q, r: u.r }, nearestItemKey, u.moveLimit);
+            } else {
+                // If holding items, deliver to nearest Slime
+                let slimes = units.filter(s => s.type === 'SLIME' && !s.isJailed);
+                if (slimes.length > 0) {
+                    let targetSlime = slimes[0];
+                    u.plot = findPathBFS({ q: u.q, r: u.r }, { q: targetSlime.q, r: targetSlime.r }, u.moveLimit);
+                }
+            }
+        } else if (u.type === 'DOG') {
+            // Police Dog AI:
+            // Find nearest Thief or Cat
+            let thieves = units.filter(t => (t.team === 'THIEF') && !t.isJailed);
+            if (thieves.length > 0) {
+                let target = thieves[0];
+                u.plot = findPathBFS({ q: u.q, r: u.r }, { q: target.q, r: target.r }, u.moveLimit);
+            }
+        }
+    });
+}
+
+// Initialize on page load
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initGame);
 } else {
