@@ -3,114 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ケイドロドロ - 戦略ボードゲーム</title>
+    <title>ケイドロドロ (Keidrororo)</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="game-container">
-        <!-- Canvas Area -->
+        <!-- Canvas Game Map -->
         <div id="canvas-wrapper">
-            <canvas id="gameCanvas" width="920" height="750"></canvas>
+            <canvas id="gameCanvas" width="900" height="800"></canvas>
         </div>
 
-        <!-- Sidebar Area -->
+        <!-- Sidebar Control Panel -->
         <div id="sidebar">
-            <!-- Phase & Status Card -->
+            <!-- Phase & Turn Card -->
             <div class="card">
                 <div class="card-title">
-                    <span>ゲーム進行状況</span>
+                    <span>フェイズ管理</span>
                     <span id="turn-badge" class="status-badge">ターン 1</span>
                 </div>
-                <div id="phase-indicator" class="phase-indicator">
-                    計画フェイズ (各ユニットの目的地を指定)
+                <div class="phase-indicator">
+                    現在の状態: 1. 計画フェイズ (Plot Phase)
                 </div>
             </div>
 
-            <!-- Unit Info Card -->
+            <!-- Selected Unit Info Card -->
             <div class="card">
                 <div class="card-title">
-                    <span>選択ユニット情報</span>
-                    <span id="unit-type-badge" class="status-badge">-</span>
+                    <span>選択中のユニット</span>
+                    <span id="unit-type-badge" class="status-badge">泥棒陣営</span>
                 </div>
                 <div class="unit-info-grid">
                     <div class="info-item">
-                        <div class="info-label">名前</div>
-                        <div id="unit-name" class="info-val">未選択</div>
+                        <div class="info-label">ユニット名</div>
+                        <div id="unit-name" class="info-val">スライム 1</div>
                     </div>
                     <div class="info-item">
-                        <div class="info-label">現在位置</div>
-                        <div id="unit-pos" class="info-val">-</div>
+                        <div class="info-label">現在座標 (Q, R)</div>
+                        <div id="unit-pos" class="info-val">(-9, 0)</div>
                     </div>
                     <div class="info-item">
-                        <div class="info-label">移動力</div>
-                        <div id="unit-speed" class="info-val">-</div>
+                        <div class="info-label">移動可能距離</div>
+                        <div id="unit-speed" class="info-val">4 マス</div>
                     </div>
                     <div class="info-item">
-                        <div class="info-label">プロット数</div>
+                        <div class="info-label">プロット済み歩数</div>
                         <div id="unit-plot-count" class="info-val">0 マス</div>
                     </div>
                 </div>
-
-                <div style="margin-top: 8px;">
-                    <div class="info-label">所持アイテム</div>
+                <div style="margin-top: 6px;">
+                    <div class="info-label">所持品 (スロット)</div>
                     <div id="unit-inv" class="inv-list">
                         <span class="inv-item">なし</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Action Controls Card -->
-            <div class="card">
-                <div class="card-title">操作アクション</div>
-                <div class="btn-group">
-                    <button id="btn-reset-unit-plot" class="btn-reset-plot">このユニットのルートリセット</button>
-                    <button id="btn-execute-phase" class="btn-success">全ユニットの行動を実行する</button>
-                </div>
-            </div>
-
-            <!-- Police Supply / Item Card (Dynamic) -->
+            <!-- Special Action Card (Dynamic for Police HQ supply, etc.) -->
             <div id="special-action-card" class="card" style="display: none;">
-                <div class="card-title" id="special-card-title">警察拠点 補給倉庫</div>
+                <div id="special-card-title" class="card-title">特殊アクション</div>
                 <div id="special-card-body"></div>
             </div>
 
-            <!-- Event Log Card -->
+            <!-- Action Controls Card -->
             <div class="card">
-                <div class="card-title">イベントログ</div>
-                <div id="event-log">
-                    <div class="log-entry"><span class="log-time">[00:00]</span> ゲーム開始。全ユニットの初期位置が配置されました。</div>
+                <div class="card-title">操作コマンド</div>
+                <div class="btn-group">
+                    <button id="btn-execute-phase" class="btn-success">▶ 計画完了・移動実行</button>
+                    <button id="btn-reset-unit-plot" class="btn-reset-plot">↺ 選択ユニットのプロットリセット</button>
                 </div>
             </div>
 
-            <!-- Map Guide / Legend -->
+            <!-- Game Log Card -->
             <div class="card">
-                <div class="card-title">マップ凡例</div>
-                <div class="guide-section">
-                    <div class="guide-item">
-                        <div class="guide-square" style="background-color: #3b82f6;"></div>
-                        <span class="guide-text">警察 (P) / 警察拠点 (角D: 右端)</span>
-                    </div>
-                    <div class="guide-item">
-                        <div class="guide-square" style="background-color: #ef4444;"></div>
-                        <span class="guide-text">泥棒スライム (S) / 泥棒拠点 (角A: 左端)</span>
-                    </div>
-                    <div class="guide-item">
-                        <div class="guide-square" style="background-color: #eab308;"></div>
-                        <span class="guide-text">泥棒猫 (C) (角B/F) / 警察犬 (D)</span>
-                    </div>
-                    <div class="guide-item">
-                        <div class="guide-square" style="background-color: #10b981;"></div>
-                        <span class="guide-text">研究所 (お宝) / 発電所 (角C/E)</span>
-                    </div>
-                    <div class="guide-item">
-                        <div class="guide-square" style="background-color: #a855f7;"></div>
-                        <span class="guide-text">牢屋 (警察拠点から左3マス: q=0, r=7)</span>
-                    </div>
-                </div>
+                <div class="card-title">イベントログ</div>
+                <div id="event-log"></div>
             </div>
         </div>
     </div>
-
     <script src="game.js"></script>
 </body>
 </html>
